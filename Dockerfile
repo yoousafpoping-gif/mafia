@@ -7,7 +7,8 @@ RUN npm ci --omit=dev
 COPY . .
 
 ENV NODE_ENV=production
-# PORT بيحقنه المضيف (Back4App/Zeabur/HF) — السيرفر بيقراه من البيئة
-EXPOSE 4000
+# Hugging Face Spaces بتتواصل مع الحاوية على 7860
+ENV PORT=7860
+EXPOSE 7860
 
 CMD ["node", "server/index.js"]
