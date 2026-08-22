@@ -221,7 +221,6 @@ export function GameClient({ code }: { code: string }) {
     return (
       <NoSeatScreen
         code={code}
-        connected={status.connected}
         joining={status.joining}
         onJoin={game.joinRoom}
         onInviteSeen={() => {
@@ -446,7 +445,6 @@ export function GameClient({ code }: { code: string }) {
  */
 function NoSeatScreen({
   code,
-  connected,
   joining,
   onJoin,
   onInviteSeen,
@@ -454,7 +452,6 @@ function NoSeatScreen({
   onDismissToast,
 }: {
   code: string;
-  connected: boolean;
   joining: boolean;
   onJoin: (rawCode: string, name: string) => Promise<string>;
   onInviteSeen: () => void;
@@ -496,7 +493,9 @@ function NoSeatScreen({
     <main className="fixed inset-0 flex w-full items-center justify-center overflow-hidden bg-[url('/assets/backgrounds/table_bg.jpeg')] bg-cover bg-center bg-no-repeat px-4">
       <div className="pointer-events-none absolute inset-0 z-0 bg-black/40" />
       <div className="relative z-10 w-full max-w-sm rounded-2xl border border-night-600/60 bg-black/60 p-8 text-center backdrop-blur-md">
-        {!connected || joining ? (
+        {/* سبينر بس وقت إعادة الربط التلقائية — بعدها فورم الدخول اليدوي
+            لازم يظهر حتى لو الاتصال فاشل (لينك دعوة من غير قعدة محفوظة) */}
+        {joining ? (
           <>
             <Loader2 className="mx-auto h-8 w-8 animate-spin text-gold-400" strokeWidth={1.5} />
             <p className="mt-4 text-sm text-slate-400">

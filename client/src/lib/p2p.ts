@@ -22,6 +22,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { firebaseDb } from './firebase';
+import { loadIceServers } from './ice';
 
 export const HOST_SOCKET = '__host__';
 
@@ -33,13 +34,7 @@ export type Envelope =
 type Listener = (payload: unknown) => void;
 type Handler = (payload: unknown, socketId: string) => unknown;
 
-const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [
-    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-  ],
-};
-
-const SIGNAL_TIMEOUT_MS = 12_000;
+const SIGNAL_TIMEOUT_MS = 15_000;
 
 function uid(): string {
   return crypto.randomUUID();
@@ -87,9 +82,14 @@ class ChannelConn {
   onMessage: ((raw: string) => void) | null = null;
   onClose: (() => void) | null = null;
 
-  constructor(peer: string) {
+  private constructor(peer: string, pc: RTCPeerConnection) {
     this.peer = peer;
-    this.pc = new RTCPeerConnection(RTC_CONFIG);
+    this.pc = pc;
+  }
+
+  /** المرشحات (STUN/TURN) بتتحمل async — مصنع بدل constructor مباشر */
+  static async create(peer: string): Promise<ChannelConn> {
+    return new ChannelConn(peer, new RTCPeerConnection({ iceServers: await loadIceServers() }));
   }
 
   bindChannel(channel: RTCDataChannel) {
@@ -212,14 +212,13 @@ export class RoomHost {
 
   private async onGuestDoc(peerId: string, data: GuestDoc) {
     const offer = fromJson<RTCSessionDescriptionInit>(data.offer);
-    console.error(`[p2p-host] guest doc: ${peerId.slice(0, 8)} offer=${Boolean(offer)} answer=${Boolean(data.answer)}`);
 
     if (offer && !data.answer && !this.answering.has(peerId)) {
       this.answering.add(peerId);
       try {
         let conn = this.conns.get(peerId);
         if (!conn) {
-          conn = new ChannelConn(peerId);
+          conn = await ChannelConn.create(peerId);
           conn.onMessage = (raw) => this.handleMessage(conn!, raw);
           conn.onClose = () => this.handleClose(peerId);
           this.conns.set(peerId, conn);
@@ -238,7 +237,6 @@ export class RoomHost {
         await updateDoc(guestDoc(this.code, peerId), {
           answer: toJson({ type: answer.type, sdp: answer.sdp }),
         });
-        console.error(`[p2p-host] answered ${peerId.slice(0, 8)}`);
       } catch (err) {
         this.answering.delete(peerId);
         return;
@@ -403,7 +401,7 @@ export class RoomClient {
       throw { type: 'peer-unavailable', code: 'ROOM_CLOSED', message: 'صاحب الأوضة مقفّل — الأوضة دي انتهت خلاص' };
     }
 
-    const conn = new ChannelConn(this.peerId);
+    const conn = await ChannelConn.create(this.peerId);
     this.conn = conn;
     const channel = conn.pc.createDataChannel('reliable', { ordered: true });
     conn.bindChannel(channel);
@@ -515,10 +513,12 @@ export class RoomClient {
 
   sendRequest(event: string, payload: unknown): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      if (!this.conn?.open) {
-        reject({ code: 'NOT_CONNECTED', message: 'Not connected to host' });
+      if (!this.conn) {
+        reject({ code: 'NOT_CONNECTED', message: 'الاتصال بالهوست مقطوع — اخرج وادخل تاني' });
         return;
       }
+      // ChannelConn.send بيطبّر الرسالة لحد ما القناة تفتح — مفيش رفض فوري
+      // لو ready حلت والقناة لسه بتثبت (مهلة النداء الخارجية بتغطي الباقي)
       const ackId = uid();
       this.ackHandlers.set(ackId, { resolve, reject });
       this.conn.send(toJson({ kind: 'request', event, payload, ackId } satisfies Envelope));

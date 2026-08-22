@@ -2,11 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getRoomNet } from '@/lib/net';
+import { loadIceServers } from '@/lib/ice';
 import type { GameState, VoicePolicy } from '@/lib/types';
-
-const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }],
-};
 
 type VoiceStatus = 'idle' | 'connecting' | 'live' | 'error';
 
@@ -146,11 +143,11 @@ export function useVoiceChat(
   );
 
   const ensurePeer = useCallback(
-    (peerId: string): RTCPeerConnection => {
+    async (peerId: string): Promise<RTCPeerConnection> => {
       const existing = pcsRef.current.get(peerId);
       if (existing) return existing;
 
-      const pc = new RTCPeerConnection(RTC_CONFIG);
+      const pc = new RTCPeerConnection({ iceServers: await loadIceServers() });
       pcsRef.current.set(peerId, pc);
 
       const local = streamRef.current;
@@ -188,7 +185,7 @@ export function useVoiceChat(
   const offerTo = useCallback(
     async (peerId: string) => {
       try {
-        const pc = ensurePeer(peerId);
+        const pc = await ensurePeer(peerId);
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         getRoomNet()?.sendVoice('voice:signal', peerId, {
@@ -264,7 +261,7 @@ export function useVoiceChat(
     const onSignal = async ({ from, data }: { from: string; data: RTCSessionDescriptionInit }) => {
       if (!joinedRef.current) return;
       try {
-        const pc = ensurePeer(from);
+        const pc = await ensurePeer(from);
         await pc.setRemoteDescription(data);
         const buffered = iceBuffersRef.current.get(from) ?? [];
         iceBuffersRef.current.set(from, []);

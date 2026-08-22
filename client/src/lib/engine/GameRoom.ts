@@ -170,6 +170,14 @@ export class GameRoom {
     );
     const player = [...this.players.values()].find((candidate) => candidate.token === token);
     assert(player, ErrorCodes.VALIDATION_ERROR, 'No seat in this room matches that rejoin token');
+    // مقعد الهوست شغّال محليًا جوه التاب بتاعه — التوكن ده مش متاح
+    // للبيرز، وإلا اتصال شبح بيخطف المقعد ولما يقفل اللاعب بيتمسح
+    assert(!player.isHost, ErrorCodes.VALIDATION_ERROR, 'That seat is the live host — rejoin is guest-only');
+    assert(
+      player.socketId !== socketId,
+      ErrorCodes.VALIDATION_ERROR,
+      'Already attached on this connection',
+    );
 
     player.socketId = socketId;
     player.isConnected = true;
@@ -203,9 +211,12 @@ export class GameRoom {
     player.isConnected = false;
 
     if (this.phase === PHASES.LOBBY) {
-      this.players.delete(player.id);
+      // الهوست ميتمسحش أبداً في اللوبي — الموتور كله شغال عنده
+      if (!player.isHost) {
+        this.players.delete(player.id);
+      }
       if (player.id === this.hostId) {
-        const successor = [...this.players.values()].find((p) => p.isConnected);
+        const successor = [...this.players.values()].find((p) => p.isConnected && !p.isHost);
         if (successor) {
           successor.isHost = true;
           this.hostId = successor.id;

@@ -235,8 +235,17 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
   }, [net, applyState, code, pushToast, sync]);
 
   // صفحة الأوضة: لو مفيش اتصال جاهز جرّب يعيد الربط بالتوكن المحفوظ.
+  // مرة واحدة بس لكل كود — من غير الحارس ده الـ teardown قبل دخول يدوي
+  // بيرجّع net لـ null فيبدأ الاتصال الشبح بالتوكن القديم بالتوازي مع
+  // الدخول اليدوي، والاتنين بيبوّظوا بعض.
+  const rejoinTriedRef = useRef(false);
   useEffect(() => {
     if (!code || net) return;
+    if (rejoinTriedRef.current) {
+      setStatus((prev) => ({ ...prev, joining: false }));
+      return;
+    }
+    rejoinTriedRef.current = true;
 
     let cancelled = false;
     const attempt = async () => {

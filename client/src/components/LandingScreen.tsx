@@ -50,11 +50,15 @@ export function LandingScreen({
   const canAct = name.trim().length >= 2 && !busy;
   const { user, profile, loading: authLoading, googleReady, signInWithGoogle, signOut } = useAuth();
   const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const handleGoogle = async () => {
     setAuthBusy(true);
+    setAuthError(null);
     try {
       await signInWithGoogle(name);
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : 'تسجيل الدخول فشل — جرب تاني');
     } finally {
       setAuthBusy(false);
     }
@@ -164,6 +168,12 @@ export function LandingScreen({
               className="w-full rounded-lg border border-night-600 bg-night-900/90 px-3 py-2.5 text-sm text-slate-100 placeholder-slate-600 outline-none transition focus:border-gold-500/60 focus:ring-2 focus:ring-gold-500/20"
             />
           </label>
+
+          {authError && (
+            <p className="mb-3 rounded-lg border border-blood-500/50 bg-blood-900/30 px-3 py-2 text-center text-xs font-bold text-blood-200">
+              {authError}
+            </p>
+          )}
 
           <nav className="space-y-2">
             {/* CREATE ROOM — primary */}

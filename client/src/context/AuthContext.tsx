@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  getRedirectResult,
   onAuthStateChanged,
   signInWithPopup,
   signInWithRedirect,
@@ -50,6 +51,22 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null);
 
 const LOCAL_SESSION_KEY = 'mafia-auth-session-v1';
+
+/** أخطاء firebase الشائعة برسايل عربي — بدل الصمت لما الحساب/النطاق مش مفعّل */
+function friendlyAuthError(err: unknown): Error {
+  const code = (err as { code?: string })?.code ?? '';
+  const map: Record<string, string> = {
+    'auth/operation-not-allowed':
+      'تسجيل الدخول بجوجل مقفول — فعّل Google من Authentication في Firebase Console',
+    'auth/unauthorized-domain': 'النطاق ده مش مضاف في إعدادات Authentication',
+    'auth/popup-blocked': 'المتصفح حجب النافذة المنبثقة — اسمح بالنوافذ المنبثقة للموقع',
+    'auth/popup-closed-by-user': 'قفلت نافذة جوجل قبل ما تخلص',
+    'auth/cancelled-popup-request': 'اتفتح طلب تسجيل تاني — استنى الأول يخلص',
+    'auth/network-request-failed': 'مشكلة نت في الوصول لجوجل — جرب تاني',
+    'auth/too-many-requests': 'محاولات كتير — استنى شوية وجرب تاني',
+  };
+  return new Error(map[code] ?? 'تسجيل الدخول فشل — جرب تاني');
+}
 
 function readLocalSession(): AuthUser | null {
   if (typeof window === 'undefined') return null;
@@ -114,6 +131,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
      الاسترجاع المحلي مؤجّل بميكرو-تايمر — setState مباشر جوه الإفكت بيعمل cascading renders. */
   useEffect(() => {
     if (firebaseReady && firebaseAuth) {
+      // إتمام رجوع الـ redirect من الموبايل — onAuthStateChanged بيشيل الجلسة،
+      // النداء هنا بيمسح النتيجة المعلقة وبيرمي خطأها لو حصل
+      getRedirectResult(firebaseAuth).catch(() => undefined);
       const unsub = onAuthStateChanged(firebaseAuth, (fbUser) => {
         void applyUser(
           fbUser
@@ -140,17 +160,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // الموبايل بيحجب النوافذ المنبثقة — redirect هناك، وبعد الرجوع
         // onAuthStateChanged بيكمل تسجيل الجلسة لوحده
         const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-        if (isMobile) {
-          await signInWithRedirect(firebaseAuth, googleProvider);
-          return;
+        try {
+          if (isMobile) {
+            await signInWithRedirect(firebaseAuth, googleProvider);
+            return;
+          }
+          const credential = await signInWithPopup(firebaseAuth, googleProvider);
+          await applyUser({
+            uid: credential.user.uid,
+            displayName: credential.user.displayName ?? 'لاعب جوجل',
+            photoURL: credential.user.photoURL ?? '',
+            provider: 'google',
+          });
+        } catch (err) {
+          throw friendlyAuthError(err);
         }
-        const credential = await signInWithPopup(firebaseAuth, googleProvider);
-        await applyUser({
-          uid: credential.user.uid,
-          displayName: credential.user.displayName ?? 'لاعب جوجل',
-          photoURL: credential.user.photoURL ?? '',
-          provider: 'google',
-        });
         return;
       }
       // وضع محلي — نفس البروفايل على السيرفر من غير أكونت جوجل

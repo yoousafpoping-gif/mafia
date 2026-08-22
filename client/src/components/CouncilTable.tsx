@@ -26,18 +26,17 @@ interface SeatMath {
 }
 
 /**
- * Circular seat layout matching the photographic poker table
- * (table_bg.jpeg = top-down circle with 8 chairs). Positions live inside a
- * square stage so the % radius stays a perfect circle at any screen size.
+ * Elliptical seat layout — المسرح بياخد عرض وارتفاع الحاوية كلها،
+ * فالنسب بتشتغل محاور مستقلة: على الموبايل الطول أكبر فالمحور الرأسي
+ * بيوفر مسافة بين الكروت الجنب بعض (مربع زمان كان بيقص ويزاحم).
  */
 function seatPos(index: number, total: number): SeatMath {
   const angle = (index / total) * 2 * Math.PI - Math.PI/2;
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
   return {
-    // 32% radius: كل الكراسي جوه حدود الشاشة بأمان (كانت 42% وبتقصّ فوق وتحت)
-    x: 50 + 32 * cos,
-    y: 50 + 32 * sin,
+    x: 50 + 36 * cos,
+    y: 50 + 33 * sin,
     inwardX: -cos,
     inwardY: -sin,
   };
@@ -120,8 +119,9 @@ export function CouncilTable({
         {/* الخلفية الفوتوغرافية (table_bg.jpeg) معروضة على روت الشاشة —
             الترابيزة نفسها مش محتاجة رسمة تحتها، الكراسي بس اللي بنحسبها */}
 
-        {/* square stage keeps the trigonometry circular on any aspect ratio */}
-        <div className="absolute inset-0 z-10 mx-auto aspect-square h-full max-w-full">
+        {/* elliptical stage fills the whole container — circle-on-square كان بيضيّع
+            المساحة الرأسية على الموبايل ويخلي الكروت تتزاحم */}
+        <div className="absolute inset-0 z-10 h-full w-full">
           {/* center phase caption — شفاف تمامًا وخلف كل الكروت والبالونات (z-0) */}
           <div className="pointer-events-none absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2 px-6 py-4 text-center sm:px-10 sm:py-5">
             <span className="block font-serif text-xl font-black text-gold-500 drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)] drop-shadow-[0_0_14px_rgba(0,0,0,0.9)] sm:text-2xl">
@@ -154,6 +154,7 @@ export function CouncilTable({
               bubble={recentMessages[player.id]}
               showTokens={showTokens}
               order={index}
+              dense={players.length > 8}
               reaction={reactions.filter((r) => r.playerId === player.id).at(-1)}
             />
           ))}
@@ -176,6 +177,7 @@ function SeatGroup({
   showTokens,
   order,
   reaction,
+  dense,
 }: {
   player: PublicPlayer;
   math: SeatMath;
@@ -193,6 +195,8 @@ function SeatGroup({
   reaction?: { playerId: string; emojiId: string; at: number; key: number };
   showTokens: boolean;
   order: number;
+  /** أوضة زحمة (9+) — الكروت بتتصغّر شوية عشان ميتخبطوش في بعض */
+  dense?: boolean;
 }) {
   const dead = !player.isAlive;
   const mayorRevealed = player.hasRevealed;
@@ -266,7 +270,7 @@ function SeatGroup({
 
       {/* noir tarot card — velvet face, double gold line, cinematic hover */}
       <div
-        className={`relative flex h-28 w-20 flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-[#d4af37]/40 bg-gradient-to-b from-[#1a1410] to-[#0a0806] shadow-[0_4px_20px_rgba(0,0,0,0.8)] transition-all duration-300 sm:h-32 sm:w-24 ${
+        className={`relative flex h-24 w-16 flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-[#d4af37]/40 bg-gradient-to-b from-[#1a1410] to-[#0a0806] shadow-[0_4px_20px_rgba(0,0,0,0.8)] transition-all duration-300 sm:h-32 sm:w-24 ${dense ? 'scale-[0.88]' : ''} ${
           dead ? 'opacity-70 grayscale' : ''
         } ${
           isSpeaking && !dead
@@ -301,18 +305,18 @@ function SeatGroup({
         {dead ? (
           /* DEAD state — dark overlay + stamped verdict */
           <div className="relative z-10 flex flex-col items-center gap-1">
-            <Skull className="h-7 w-7 text-slate-600 sm:h-9 sm:w-9" strokeWidth={1.5} />
+            <Skull className="h-6 w-6 text-slate-600 sm:h-9 sm:w-9" strokeWidth={1.5} />
             <span className="-rotate-12 rounded border-2 border-blood-600/80 px-1 font-mono text-[9px] font-black tracking-widest text-blood-500">
               مرحوم
             </span>
           </div>
         ) : (
           /* avatar inside circular gold-ring frame */
-          <div className="relative z-10 flex h-11 w-11 items-center justify-center rounded-full border-2 border-[#d4af37]/70 bg-night-950/80 shadow-[0_0_14px_rgba(212,175,55,0.35)] sm:h-12 sm:w-12">
+          <div className="relative z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 border-[#d4af37]/70 bg-night-950/80 shadow-[0_0_14px_rgba(212,175,55,0.35)] sm:h-12 sm:w-12">
             {player.isBot ? (
-              <BotAvatar size={40} />
+              <BotAvatar size={30} />
             ) : (
-              <span className="font-serif text-base font-black text-gold-200 sm:text-lg">
+              <span className="font-serif text-sm font-black text-gold-200 sm:text-lg">
                 {player.name.slice(0, 2).toUpperCase()}
               </span>
             )}
@@ -341,7 +345,7 @@ function SeatGroup({
         {muted && player.isAlive && (
           <>
             {/* glassmorphic lock overlay frosted over the mouth of the card */}
-            <span className="absolute inset-x-2 top-5 z-10 flex flex-col items-center gap-0.5 rounded-lg border border-white/25 bg-white/10 px-1 py-1 backdrop-blur-sm sm:top-8">
+            <span className="absolute inset-x-1.5 top-3 z-10 flex flex-col items-center gap-0.5 rounded-lg border border-white/25 bg-white/10 px-1 py-1 backdrop-blur-sm sm:inset-x-2 sm:top-8">
               <Lock className="h-3 w-3 text-slate-200 sm:h-3.5 sm:w-3.5" strokeWidth={1.5} />
               <span className="font-mono text-[7px] font-black tracking-wider text-slate-200">مسكت</span>
             </span>
@@ -365,7 +369,7 @@ function SeatGroup({
       </div>
 
       <span
-        className={`z-20 mt-1 max-w-[80px] truncate rounded-full border border-gold-500/30 bg-black/80 px-2 py-0.5 text-center text-[10px] font-bold leading-snug text-gold-200 shadow-[0_0_12px_rgba(212,175,55,0.25)] sm:max-w-[92px] ${
+        className={`z-20 mt-1 max-w-[64px] truncate rounded-full border border-gold-500/30 bg-black/80 px-1.5 py-0.5 text-center text-[9px] font-bold leading-snug text-gold-200 shadow-[0_0_12px_rgba(212,175,55,0.25)] sm:max-w-[92px] sm:px-2 sm:text-[10px] ${dense ? 'scale-[0.88]' : ''} ${
           dead ? 'border-slate-700 bg-night-900/90 text-slate-500 line-through' : ''
         } ${isYou ? 'ring-1 ring-gold-500/60' : ''}`}
       >

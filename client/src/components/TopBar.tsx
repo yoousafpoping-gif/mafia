@@ -47,9 +47,9 @@ export function TopBar({
 
   return (
     <>
-      <header className="relative z-50 flex w-full shrink-0 items-center justify-between gap-2 border-b border-gold-500/20 bg-black/30 p-4 backdrop-blur-md">
+      <header className="relative z-50 flex w-full shrink-0 items-center justify-between gap-1 border-b border-gold-500/20 bg-black/30 p-2.5 backdrop-blur-md sm:gap-2 sm:p-4">
       {/* start cluster — براند حارة المافيا + بيانات الأوضة */}
-      <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+      <div className="flex min-w-0 items-center gap-1 sm:gap-2">
         <span className="flex shrink-0 items-center gap-1.5" title={GAME_TITLE}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -61,7 +61,7 @@ export function TopBar({
             {GAME_TITLE}
           </span>
         </span>
-        <span className="rounded-lg border border-gold-500/40 bg-gold-500/10 px-2 py-1 font-mono text-[11px] font-black tracking-widest text-gold-300">
+        <span className="rounded-lg border border-gold-500/40 bg-gold-500/10 px-1.5 py-1 font-mono text-[10px] font-black tracking-widest text-gold-300 sm:px-2 sm:text-[11px]">
           {state.code}
         </span>
         {state.phase !== 'LOBBY' && (
@@ -129,14 +129,14 @@ export function TopBar({
         <button
           onClick={() => setLeaderboardOpen(true)}
           title="لوحة الصدارة الأسبوعية"
-          className={`flex h-9 w-9 items-center justify-center rounded-full transition ${GOLD_ICON}`}
+          className={`hidden h-9 w-9 items-center justify-center rounded-full transition sm:flex ${GOLD_ICON}`}
         >
           <Trophy className="h-4.5 w-4.5" strokeWidth={1.5} />
         </button>
         <button
           onClick={() => setSettingsOpen(true)}
           title="إعدادات الصوت"
-          className={`flex h-9 w-9 items-center justify-center rounded-full transition ${GOLD_ICON}`}
+          className={`hidden h-9 w-9 items-center justify-center rounded-full transition sm:flex ${GOLD_ICON}`}
         >
           <Settings className="h-4.5 w-4.5" strokeWidth={1.5} />
         </button>

@@ -306,7 +306,13 @@ export async function createPeerNet(rawCode: string, name: string, token?: strin
   const code = rawCode.trim().toUpperCase();
   const client = new RoomClient(code);
   try {
-    await withTimeout(client.ready, 12_000, 'CONNECT_FAILED', 'مقدرناش نتصل بالهوست — تأكد الكود صح');
+    // p2p عنده مهلة داخلية 15ث برسالة أدق — دي شبكة أمان 18ث
+    await withTimeout(
+      client.ready,
+      18_000,
+      'CONNECT_FAILED',
+      'مقدرناش نوصل لصاحب الأوضة — لو انت على موبايل داتا وهو على وايفاي جرب توصلوا على نفس الشبكة',
+    );
   } catch (err) {
     try {
       client.peer.destroy();
