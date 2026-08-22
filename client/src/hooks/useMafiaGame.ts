@@ -263,6 +263,13 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
     };
   }, [code, net, applyState]);
 
+  // الهوست بيتنقل من الرئيسية لصفحة الأوضة والاتصال معاه — لازم تعبئة الحالة
+  // فورًا بالـ sync بدل شاشة "ادخل الأوضة" اللي بتهدم اتصال الهوست نفسه.
+  useEffect(() => {
+    if (!net) return;
+    void sync();
+  }, [net, sync]);
+
   const teardownCurrentNet = useCallback(() => {
     const current = getRoomNet();
     if (current) {

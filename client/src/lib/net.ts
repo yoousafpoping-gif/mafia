@@ -104,73 +104,73 @@ function registerHostHandlers(host: RoomHost, engine: GameRoom) {
   );
 
   host.requestHandlers.set('game:start', wrap((_p: unknown, socketId: string) => {
-    bySocket(socketId);
-    engine.startGame(socketId);
-    return { state: engine.privateState(socketId) };
+    const player = bySocket(socketId);
+    engine.startGame(player.id);
+    return { state: engine.privateState(player.id) };
   }));
 
   host.requestHandlers.set('game:sync', wrap((_p: unknown, socketId: string) => {
-    bySocket(socketId);
-    return { state: engine.privateState(socketId) };
+    const player = bySocket(socketId);
+    return { state: engine.privateState(player.id) };
   }));
 
   host.requestHandlers.set('action:night_ability', wrap((payload: unknown, socketId: string) => {
-    bySocket(socketId);
+    const player = bySocket(socketId);
     const { targetId } = (payload ?? {}) as { targetId?: string | null };
-    engine.submitNightAction(socketId, targetId ?? null);
+    engine.submitNightAction(player.id, targetId ?? null);
     return { submitted: true };
   }));
 
   host.requestHandlers.set('action:good_boy_revenge', wrap((payload: unknown, socketId: string) => {
-    bySocket(socketId);
+    const player = bySocket(socketId);
     const { targetId } = (payload ?? {}) as { targetId?: string | null };
-    engine.submitRevenge(socketId, targetId ?? null);
+    engine.submitRevenge(player.id, targetId ?? null);
     return { submitted: true };
   }));
 
   host.requestHandlers.set('action:mayor_reveal', wrap((_p: unknown, socketId: string) => {
-    bySocket(socketId);
-    engine.revealMayor(socketId);
+    const player = bySocket(socketId);
+    engine.revealMayor(player.id);
     return { revealed: true };
   }));
 
   host.requestHandlers.set('action:vote', wrap((payload: unknown, socketId: string) => {
-    bySocket(socketId);
+    const player = bySocket(socketId);
     const { targetId } = (payload ?? {}) as { targetId?: string };
-    engine.castVote(socketId, targetId ?? '');
+    engine.castVote(player.id, targetId ?? '');
     return { voted: true };
   }));
 
   host.requestHandlers.set('game:add_bot', wrap((payload: unknown, socketId: string) => {
-    bySocket(socketId);
+    const player = bySocket(socketId);
     const { count } = (payload ?? {}) as { count?: number };
-    engine.addBot(socketId, count ?? 1);
-    return { state: engine.privateState(socketId) };
+    engine.addBot(player.id, count ?? 1);
+    return { state: engine.privateState(player.id) };
   }));
 
   host.requestHandlers.set('room:rematch_vote', wrap((payload: unknown, socketId: string) => {
-    bySocket(socketId);
+    const player = bySocket(socketId);
     const { ready } = (payload ?? {}) as { ready?: boolean };
-    const vote = engine.voteRematch(socketId, ready !== false);
+    const vote = engine.voteRematch(player.id, ready !== false);
     return { state: engine.publicState(), ...vote };
   }));
 
   host.requestHandlers.set('game:request_play_again', wrap((_p: unknown, socketId: string) => {
-    bySocket(socketId);
-    const outcome = engine.requestPlayAgain(socketId);
+    const player = bySocket(socketId);
+    const outcome = engine.requestPlayAgain(player.id);
     return { outcome, state: engine.publicState() };
   }));
 
   host.requestHandlers.set('chat:message', wrap((payload: unknown, socketId: string) => {
-    bySocket(socketId);
+    const player = bySocket(socketId);
     const { text } = (payload ?? {}) as { text?: string };
-    return engine.postChat(socketId, text ?? '');
+    return engine.postChat(player.id, text ?? '');
   }));
 
   host.requestHandlers.set('reaction:send', wrap((payload: unknown, socketId: string) => {
-    bySocket(socketId);
+    const player = bySocket(socketId);
     const { emojiId } = (payload ?? {}) as { emojiId?: string };
-    engine.sendReaction(socketId, emojiId ?? '');
+    engine.sendReaction(player.id, emojiId ?? '');
     return { sent: true };
   }));
 
