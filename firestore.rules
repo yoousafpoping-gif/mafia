@@ -1,0 +1,15 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // غرف اللعبة — signaling الـ WebRTC (offers/answers/ICE/نبض الحياة)
+    match /rooms/{roomId}/{document=**} {
+      allow read, write: if true;
+    }
+
+    // إعدادات مشتركة بتتقرأ وقت التشغيل (بيانات TURN مثلًا) —
+    // القراءة للجميع، والكتابة متاحة عشان تحديثها بسكريبت من غير إعادة نشر
+    match /config/{docId} {
+      allow read, write: if true;
+    }
+  }
+}

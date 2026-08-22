@@ -215,3 +215,33 @@ cd client && npm run dev
 
 > الكلاينت على localhost بيتوصل بـ `localhost:9000/peerjs` تلقائيًا حتى لو
 > `NEXT_PUBLIC_PEER_SERVER` مش متظبط.
+
+---
+
+## 7) سيرفر TURN (عبور الشبكات — موبايل داتا ↔ وايفاي)
+
+الاتصال P2P بين شبكتين مختلفتين محتاج TURN relay غير الـ STUN.
+الإعدادات بتتقرأ **وقت التشغيل** من مستند Firestore `config/turn`
+(مش محتاجة إعادة نشر):
+
+```
+config/turn {
+  url:      "turn:free.expressturn.com:3478?transport=udp,turn:free.expressturn.com:3478?transport=tcp",
+  username: "...",
+  password: "..."
+}
+```
+
+- المصدر: حساب مجاني في [expressturn.com](https://www.expressturn.com/) (1000GB/شهر)
+- لو البيانات اتغيرت (Refresh Credentials من الـ dashboard): حدّث المستند من
+  Firebase Console → Firestore → `config/turn` — أو أعد تشغيل سكريبت كتابة.
+- من غير المستند ده اللعبة شغالة عادي على نفس الشبكة (STUN فقط).
+- أولوية أعلى للمتغيرات: `NEXT_PUBLIC_TURN_URL/USERNAME/PASSWORD` في `.env.local`
+  بتتجاهل المستند (بتيجي مدموجة في البناء).
+
+## 8) قواعد Firestore
+
+`firestore.rules` — نشرها بأمر:
+```bash
+cd client && npx firebase-tools deploy --only firestore:rules --config ../firebase.json --project mafia-b1d7e
+```
