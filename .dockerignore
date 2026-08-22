@@ -1,0 +1,9 @@
+node_modules
+client
+data
+out
+.git
+.gitignore
+*.md
+.env*
+!/.env.example
