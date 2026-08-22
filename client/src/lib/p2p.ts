@@ -34,10 +34,12 @@ function brokerOptions(): PeerOptions {
     try {
       const url = new URL(configured);
       const secure = url.protocol === 'https:';
+      // A bare origin (no path) means our standard /peerjs mount on the game server.
+      const rawPath = url.pathname === '/' ? '/peerjs' : url.pathname;
       return {
         host: url.hostname,
         port: url.port ? Number(url.port) : secure ? 443 : 80,
-        path: url.pathname.endsWith('/') ? url.pathname : `${url.pathname}/`,
+        path: rawPath.endsWith('/') ? rawPath : `${rawPath}/`,
         secure,
       };
     } catch {
