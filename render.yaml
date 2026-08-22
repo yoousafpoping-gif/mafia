@@ -1,0 +1,16 @@
+# إعدادات Render Blueprint — أول ما تربط الريبو بـ Render بيقرأ الملف ده
+# ويعمل الخدمة لوحده من غير ما تكتب أي إعدادات بإيدك.
+services:
+  - type: web
+    name: mafia-server
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # رابط الموقع بتاعك على Netlify — هتكتبه بعد خطوة Netlify
+      - key: CLIENT_URL
+        sync: false
