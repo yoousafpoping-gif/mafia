@@ -1,0 +1,483 @@
+@import "tailwindcss";
+
+@theme {
+  /* AAA Noir — Obsidian #0b0d10 / Crimson #e63946 / Aged Gold #d4af37 */
+  --color-night-950: #050608;
+  --color-night-900: #0b0d10;
+  --color-night-850: #101319;
+  --color-night-800: #161a22;
+  --color-night-700: #202634;
+  --color-night-600: #2c3442;
+  --color-blood-700: #a4161a;
+  --color-blood-600: #c1121f;
+  --color-blood-500: #e63946;
+  --color-blood-400: #f06565;
+  --color-gold-700: #8f6f1d;
+  --color-gold-600: #b8942c;
+  --color-gold-500: #d4af37;
+  --color-gold-400: #e2c25c;
+  --color-gold-300: #f0d98c;
+
+  /* Remap default Tailwind grays to warm noir charcoal (no generic gray) */
+  --color-slate-100: #ece7ee;
+  --color-slate-200: #d8d2de;
+  --color-slate-300: #b3abc0;
+  --color-slate-400: #8d8496;
+  --color-slate-500: #6f6879;
+  --color-slate-600: #524c5a;
+  --color-slate-700: #3a3542;
+  --color-slate-800: #262230;
+  --color-slate-900: #171420;
+  --color-slate-950: #0d0b13;
+
+  /* Remap default blues to desaturated night steel */
+  --color-indigo-200: #c7c2e6;
+  --color-indigo-300: #a49dd0;
+  --color-indigo-400: #7f78b8;
+  --color-indigo-500: #5c5494;
+  --color-indigo-900: #232043;
+  --color-indigo-950: #141226;
+}
+
+/* Hard full-bleed reset — no browser margins, no black edges, ever.
+   The app shell manages its own scrolling internally per screen. */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #000;
+}
+
+body {
+  color: var(--color-slate-200);
+  font-family: var(--font-cairo), "Segoe UI", Tahoma, sans-serif;
+  letter-spacing: 0.01em;
+}
+
+.font-serif {
+  font-family: var(--font-cairo), "Segoe UI", Tahoma, sans-serif;
+}
+
+.bg-council {
+  background-image:
+    radial-gradient(1100px 500px at 50% -12%, rgba(48, 63, 129, 0.4), transparent 62%),
+    radial-gradient(800px 420px at 85% 110%, rgba(153, 27, 27, 0.16), transparent 60%);
+}
+
+.starfield {
+  background-image:
+    radial-gradient(1px 1px at 12% 22%, rgba(255, 255, 255, 0.75) 50%, transparent 51%),
+    radial-gradient(1px 1px at 32% 64%, rgba(255, 255, 255, 0.5) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 58% 18%, rgba(255, 255, 255, 0.65) 50%, transparent 51%),
+    radial-gradient(1px 1px at 74% 42%, rgba(255, 255, 255, 0.45) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 88% 72%, rgba(255, 255, 255, 0.6) 50%, transparent 51%),
+    radial-gradient(1px 1px at 45% 84%, rgba(255, 255, 255, 0.4) 50%, transparent 51%),
+    radial-gradient(1px 1px at 8% 78%, rgba(255, 255, 255, 0.5) 50%, transparent 51%),
+    radial-gradient(1px 1px at 66% 92%, rgba(255, 255, 255, 0.35) 50%, transparent 51%);
+}
+
+.text-glow-gold {
+  text-shadow: 0 0 22px rgba(229, 181, 103, 0.45);
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 175, 55, 0.35) transparent;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(212, 175, 55, 0.5), rgba(230, 57, 70, 0.4));
+  border-radius: 999px;
+}
+
+.text-glow-blood {
+  text-shadow: 0 0 24px rgba(239, 68, 68, 0.55);
+}
+
+.table-vignette {
+  background:
+    radial-gradient(900px 380px at 50% -10%, rgba(48, 63, 129, 0.35), transparent 60%),
+    radial-gradient(700px 340px at 90% 115%, rgba(153, 27, 27, 0.14), transparent 62%),
+    linear-gradient(to bottom, #101a30, #0a1122);
+}
+
+.table-vignette::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 52%, rgba(4, 7, 14, 0.6) 100%);
+}
+
+/* ===== AAA cinematic kit ===== */
+
+@keyframes spin360 {
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow { animation: spin360 9s linear infinite; }
+.animate-spin-slower { animation: spin360 18s linear infinite reverse; }
+
+.fiary-conic {
+  background: conic-gradient(
+    from 0deg,
+    #450a0a, #b91c1c 12%, #ef4444 22%, #f59e0b 32%, #fbbf24 38%,
+    #b91c1c 52%, #450a0a 62%, #991b1b 78%, #ef4444 88%, #450a0a
+  );
+}
+
+.gold-emboss {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 244, 214, 0.9) 0%,
+      rgba(212, 162, 78, 0.35) 22%,
+      rgba(138, 95, 29, 0.95) 45%,
+      rgba(243, 214, 139, 0.85) 62%,
+      rgba(90, 58, 14, 0.95) 100%
+    ),
+    linear-gradient(#2a1c08, #2a1c08);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 240, 200, 0.45),
+    inset 0 0 22px rgba(0, 0, 0, 0.6),
+    0 14px 50px rgba(0, 0, 0, 0.7);
+}
+
+.leather-bg {
+  background-color: #17101a;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.055'/%3E%3C/svg%3E"),
+    radial-gradient(130% 80% at 50% 0%, rgba(120, 53, 15, 0.28), transparent 55%),
+    linear-gradient(165deg, #20141e 0%, #150d17 55%, #0d0910 100%);
+}
+
+.text-metallic-gold {
+  background: linear-gradient(
+    180deg,
+    #fff7db 5%, #f3d68b 32%, #c9962f 52%, #8a5f1d 66%, #e5b567 84%, #fff7db 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.65)) drop-shadow(0 0 16px rgba(229, 181, 103, 0.35));
+}
+
+.text-metallic-blood {
+  background: linear-gradient(
+    180deg,
+    #fee2e2 5%, #fca5a5 30%, #ef4444 52%, #7f1d1d 68%, #f87171 86%, #fee2e2 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.65)) drop-shadow(0 0 16px rgba(239, 68, 68, 0.4));
+}
+
+.clip-octagon {
+  clip-path: polygon(29% 0, 71% 0, 100% 29%, 100% 71%, 71% 100%, 29% 100%, 0 71%, 0 29%);
+}
+
+.wood-grain {
+  background-image:
+    repeating-linear-gradient(
+      93deg,
+      rgba(0, 0, 0, 0.3) 0 2px,
+      transparent 2px 9px,
+      rgba(255, 190, 140, 0.055) 9px 11px,
+      transparent 11px 23px
+    ),
+    radial-gradient(120% 100% at 50% 0%, #4a2018 0%, #33140d 45%, #1a0906 100%);
+}
+
+/* dark oxblood leather playing surface */
+.felt-leather {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E"),
+    radial-gradient(85% 85% at 50% 30%, #3b1620 0%, #260e15 55%, #12060a 100%);
+}
+
+/* ===== shared design-system utilities (see src/styles/themeConfig.ts) ===== */
+
+.glass-panel {
+  background-color: rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(212, 162, 78, 0.2);
+  box-shadow: 0 0 20px rgba(230, 57, 70, 0.15), 0 18px 50px rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.gold-frame {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(#141019, #141019) padding-box,
+    linear-gradient(135deg, #92400e, #facc15, #ca8a04, #92400e) border-box;
+}
+
+.crimson-edge {
+  box-shadow:
+    0 0 0 1px rgba(239, 68, 68, 0.55),
+    0 0 18px rgba(220, 38, 38, 0.45),
+    inset 0 0 14px rgba(127, 29, 29, 0.35);
+}
+
+.btn-noir {
+  cursor: pointer;
+  touch-action: manipulation;
+  will-change: transform;
+}
+
+.noir-vignette {
+  position: relative;
+  background-color: #08060c;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14'%3E%3Crect width='28' height='14' fill='%230d0913'/%3E%3Cpath d='M0 7h28M9 0v7M19 7v7' stroke='%23080510' stroke-width='1.5'/%3E%3C/svg%3E"),
+    radial-gradient(1100px 520px at 50% -10%, rgba(229, 181, 103, 0.13), transparent 62%),
+    radial-gradient(760px 400px at 88% 112%, rgba(185, 28, 28, 0.16), transparent 60%),
+    linear-gradient(to bottom, #100b16, #060409);
+}
+.noir-vignette::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 48%, rgba(3, 2, 6, 0.82) 100%);
+}
+
+@keyframes ledPulse {
+  0%, 100% { opacity: 0.7; filter: blur(6px); }
+  50% { opacity: 1; filter: blur(11px); }
+}
+.led-crimson {
+  background: radial-gradient(closest-side, rgba(239, 68, 68, 0.95), rgba(185, 28, 28, 0.5));
+  animation: ledPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes candleFlicker {
+  0%, 100% { opacity: 0.92; }
+  42% { opacity: 0.74; }
+  46% { opacity: 0.96; }
+  71% { opacity: 0.8; }
+  83% { opacity: 0.9; }
+}
+.chandelier-flicker { animation: candleFlicker 5s linear infinite; }
+
+@keyframes emberDrift {
+  0% { transform: translateY(0) scale(1); opacity: 0.85; }
+  100% { transform: translateY(-26px) scale(1.5); opacity: 0; }
+}
+
+/* ===== Landing noir alley ===== */
+
+.logo-bevel {
+  background: linear-gradient(
+    180deg,
+    #fffbe8 0%, #f8ecc0 18%, #f3d68b 34%, #c9962f 50%,
+    #7a5216 60%, #e5b567 76%, #fff7db 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter:
+    drop-shadow(0 1px 0 #6b4a12)
+    drop-shadow(0 2px 0 #3f2a08)
+    drop-shadow(0 5px 2px rgba(0, 0, 0, 0.65))
+    drop-shadow(0 0 26px rgba(229, 181, 103, 0.35));
+}
+
+.neon { font-weight: 900; letter-spacing: 0.14em; }
+.neon-red  { color: #ff6b6b; text-shadow: 0 0 4px #ff2b2b, 0 0 12px #dc2626, 0 0 30px #b91c1c, 0 0 56px #7f1d1d; }
+.neon-blue { color: #a8cdff; text-shadow: 0 0 4px #4da3ff, 0 0 12px #2563eb, 0 0 30px #1d4ed8; }
+.neon-gold { color: #ffe9b0; text-shadow: 0 0 4px #ffd98a, 0 0 12px #e5b567, 0 0 30px #ca8a04; }
+
+@keyframes neonFlicker {
+  0%, 88%, 100% { opacity: 1; }
+  89% { opacity: 0.25; }
+  90% { opacity: 0.9; }
+  92% { opacity: 0.35; }
+  93% { opacity: 1; }
+  95% { opacity: 0.55; }
+  96% { opacity: 1; }
+}
+.animate-neon-flicker { animation: neonFlicker 5.5s linear infinite; }
+
+.rain-tile {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='160'%3E%3Cg stroke='%23bcd6ff' stroke-width='1.4' stroke-linecap='round' opacity='0.5'%3E%3Cline x1='12' y1='8' x2='8' y2='26'/%3E%3Cline x1='42' y1='52' x2='38' y2='72'/%3E%3Cline x1='66' y1='110' x2='62' y2='128'/%3E%3Cline x1='28' y1='130' x2='24' y2='148'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 80px 160px;
+  position: absolute;
+  inset: -160px -80px;
+}
+.rain-a { animation: rainfallA 0.5s linear infinite; opacity: 0.75; }
+.rain-b { animation: rainfallB 0.85s linear infinite; opacity: 0.4; background-size: 56px 112px; }
+@keyframes rainfallA { to { background-position: 130px 640px; } }
+@keyframes rainfallB { to { background-position: -90px 560px; } }
+
+.fog-blob { animation: fogDrift var(--fdur, 16s) ease-in-out infinite alternate; }
+@keyframes fogDrift {
+  from { transform: translateX(-10%) translateY(0); }
+  to { transform: translateX(10%) translateY(-8px); }
+}
+
+.spark { animation: sparkUp var(--sdur, 1.6s) ease-out infinite; }
+
+/* بوب الريأكشن — إيموجي 3D بيقفزscale(0→1.2→1) مع ميل محوري ثم يطفو لفوق ويخفت */
+.animate-emoji-pop {
+  animation: emoji-pop 2.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes emoji-pop {
+  0% { transform: translate(-50%, 12px) scale(0) rotateX(55deg) rotateY(-12deg); opacity: 0; }
+  35% { transform: translate(-50%, -6px) scale(1.2) rotateX(0deg) rotateY(0deg); opacity: 1; }
+  50% { transform: translate(-50%, -10px) scale(1) rotateY(6deg); opacity: 1; }
+  72% { transform: translate(-50%, -30px) scale(1.06) rotateY(-5deg); opacity: 0.9; }
+  100% { transform: translate(-50%, -74px) scale(1.1) rotateY(4deg); opacity: 0; }
+}
+
+/* جمرات اللوجو — شرارات ذهبية بتطلع لفوق حوالين شعار حارة المافيا */
+.animate-float-sparks {
+  animation: float-sparks var(--sdur, 2.8s) ease-out infinite;
+  animation-delay: var(--sdelay, 0s);
+}
+@keyframes float-sparks {
+  0% { transform: translateY(14px) translateX(0) scale(0.5); opacity: 0; }
+  12% { opacity: 0.95; }
+  70% { opacity: 0.6; }
+  100% { transform: translateY(-130px) translateX(var(--sdx, 0px)) scale(1.3); opacity: 0; }
+}
+@keyframes sparkUp {
+  0% { transform: translateY(0) scale(1); opacity: 0.95; }
+  70% { opacity: 0.6; }
+  100% { transform: translateY(-48px) scale(0.15); opacity: 0; }
+}
+
+.car-idle { animation: carIdle 3.4s ease-in-out infinite; }
+@keyframes carIdle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2.5px); }
+}
+
+.cobblestone {
+  background-color: #0a0c11;
+  background-image:
+    radial-gradient(120% 90% at 50% 0%, rgba(229, 181, 103, 0.07), transparent 55%),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.55) 0 2px, transparent 2px 17px),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.5) 0 2px, transparent 2px 25px),
+    linear-gradient(#161923, #07080c);
+}
+
+.perspective-1200 {
+  perspective: 1200px;
+}
+
+/* ============================================================
+   CINEMATIC VFX — pure CSS, no extra libraries
+   ============================================================ */
+
+/* Flickering light for NIGHT entry: harsh opacity jumps .3 → .9 over 2s */
+@keyframes lighting-flicker {
+  0% { opacity: 0.3; }
+  10% { opacity: 0.85; }
+  22% { opacity: 0.35; }
+  36% { opacity: 0.9; }
+  48% { opacity: 0.4; }
+  62% { opacity: 0.95; }
+  78% { opacity: 0.55; }
+  90% { opacity: 0.85; }
+  100% { opacity: 0.75; }
+}
+.lighting-flicker {
+  animation: lighting-flicker 2s ease-in-out both;
+}
+
+/* Dramatic camera shake for the execution gunshot */
+@keyframes screen-shake {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  10% { transform: translate(-9px, 5px) rotate(-0.6deg); }
+  20% { transform: translate(8px, -6px) rotate(0.5deg); }
+  30% { transform: translate(-7px, -4px) rotate(-0.4deg); }
+  42% { transform: translate(7px, 6px) rotate(0.45deg); }
+  56% { transform: translate(-5px, 3px) rotate(-0.3deg); }
+  70% { transform: translate(4px, -3px) rotate(0.25deg); }
+  85% { transform: translate(-2px, 2px) rotate(-0.12deg); }
+}
+.screen-shake {
+  animation: screen-shake 0.65s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+/* Night falls: crush the room photo to 35% brightness */
+.night-dim {
+  filter: brightness(0.35);
+  transition: filter 1.2s ease;
+}
+
+/* Gunshot muzzle flash frame */
+@keyframes gunshot-flash {
+  0% { opacity: 0.95; }
+  100% { opacity: 0; }
+}
+.gunshot-flash {
+  animation: gunshot-flash 0.45s ease-out both;
+}
+
+/* News flash — vintage paper spinning into view (1930s newsreel) */
+@keyframes newspaper-spin {
+  0% {
+    opacity: 0;
+    transform: rotate(-540deg) scale(0);
+  }
+  60% {
+    opacity: 1;
+    transform: rotate(10deg) scale(1.07);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(-2deg) scale(1);
+  }
+}
+.animate-newspaper-spin {
+  animation: newspaper-spin 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Speech bubble — quick fade + upward slide above the player card */
+@keyframes bubble-in {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+.animate-bubble-in {
+  animation: bubble-in 0.25s ease-out both;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 999px;
+}

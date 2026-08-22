@@ -1,0 +1,38 @@
+export class GameError extends Error {
+  code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = 'GameError';
+    this.code = code;
+  }
+}
+
+export const ErrorCodes = Object.freeze({
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  ROOM_NOT_FOUND: 'ROOM_NOT_FOUND',
+  ROOM_FULL: 'ROOM_FULL',
+  ROOM_CLOSED: 'ROOM_CLOSED',
+  NAME_TAKEN: 'NAME_TAKEN',
+  GAME_IN_PROGRESS: 'GAME_IN_PROGRESS',
+  NOT_ENOUGH_PLAYERS: 'NOT_ENOUGH_PLAYERS',
+  TOO_MANY_PLAYERS: 'TOO_MANY_PLAYERS',
+  HOST_ONLY: 'HOST_ONLY',
+  PHASE_INVALID: 'PHASE_INVALID',
+  ACTION_NOT_ALLOWED: 'ACTION_NOT_ALLOWED',
+  ALREADY_SUBMITTED: 'ALREADY_SUBMITTED',
+  ALREADY_VOTED: 'ALREADY_VOTED',
+  TARGET_INVALID: 'TARGET_INVALID',
+  SELF_TARGET_FORBIDDEN: 'SELF_TARGET_FORBIDDEN',
+  PLAYER_DEAD: 'PLAYER_DEAD',
+  PLAYER_DISCONNECTED: 'PLAYER_DISCONNECTED',
+  NO_BULLETS_LEFT: 'NO_BULLETS_LEFT',
+  ROLE_MISMATCH: 'ROLE_MISMATCH',
+  MAYOR_ALREADY_REVEALED: 'MAYOR_ALREADY_REVEALED',
+  CHAT_BLOCKED: 'CHAT_BLOCKED',
+  NOT_IN_ROOM: 'NOT_IN_ROOM',
+  INTERNAL_ERROR: 'INTERNAL_ERROR',
+});
+
+export function assert(condition: unknown, code: string, message: string): asserts condition {
+  if (!condition) throw new GameError(code, message);
+}

@@ -1,0 +1,20 @@
+node_modules/
+.env
+.env.local
+.env*.local
+*.log
+coverage/
+dist/
+.next/
+
+# بيانات تشغيل السيرفر المحلية (بروفايلات/مفاتيح/اشتراكات) — مش للـ git
+data/
+
+# ملفات مؤقتة
+.zcode-*.png
+
+# Local Netlify folder
+.netlify
+
+# Next.js static export output
+out/

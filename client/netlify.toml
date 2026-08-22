@@ -1,0 +1,32 @@
+# إعدادات Netlify — واجهة Next.js لحارة المافيا
+# من غير الملف ده Netlify بيكتشف Next.js لوحده، بس ده بيثبت الإعدادات
+# ويمنع أي مفاجآت بين إصدارات الـ runtime.
+
+[build]
+  command = "npm run build"
+  publish = "out"
+
+# متغيرات البيئة (NEXT_PUBLIC_SERVER_URL) بتتظبط من:
+# Site configuration → Environment variables — مش هنا.
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+    Service-Worker-Allowed = "/"
+
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Content-Type = "application/manifest+json; charset=utf-8"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# لينكات الدعوة القديمة بصيغة /game/CODE — تحوّلها للصيغة الجديدة
+[[redirects]]
+  from = "/game/:code"
+  to = "/game?code=:code"
+  status = 302
