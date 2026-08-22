@@ -157,6 +157,8 @@ export class RoomHost {
   private appliedGuestCands = new Map<string, number>();
   private answering = new Set<string>();
   private destroyed = false;
+  private heartbeat?: number;
+  private onPageHide?: () => void;
 
   constructor(code: string) {
     this.code = code;
@@ -168,6 +170,17 @@ export class RoomHost {
 
   private async start() {
     await setDoc(hostPresenceDoc(this.code), { alive: true, updatedAt: serverTimestamp() });
+    // نبضة حياة — الضيف بيرفض الأوضة لو آخر نبضة قديمة (تاب مقفول/مجمد)
+    this.heartbeat = window.setInterval(() => {
+      void updateDoc(hostPresenceDoc(this.code), { updatedAt: serverTimestamp() }).catch(
+        () => undefined,
+      );
+    }, 50_000);
+    this.onPageHide = () => {
+      window.clearInterval(this.heartbeat);
+      void deleteDoc(hostPresenceDoc(this.code)).catch(() => undefined);
+    };
+    window.addEventListener('pagehide', this.onPageHide);
     this.watchGuests();
   }
 
@@ -327,6 +340,8 @@ export class RoomHost {
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
+    if (this.heartbeat) window.clearInterval(this.heartbeat);
+    if (this.onPageHide) window.removeEventListener('pagehide', this.onPageHide);
     this.unsub?.();
     for (const conn of this.conns.values()) {
       try {
@@ -378,10 +393,14 @@ export class RoomClient {
   }
 
   private async start() {
-    // فحص سريع: الأوضة موجودة أصلًا؟ (توثيق وجود الهوست قبل أي حاجة)
+    // فحص سريع: الأوضة موجودة والهورست حي؟ (نبضة الحياة لازم تكون طازجة)
     const presence = await getDoc(hostPresenceDoc(this.hostCode));
     if (!presence.exists()) {
       throw { type: 'peer-unavailable', code: 'ROOM_NOT_FOUND', message: 'الأوضة مش موجودة أو اتقفلت' };
+    }
+    const lastBeat = presence.data()?.updatedAt?.toMillis?.() ?? 0;
+    if (lastBeat && Date.now() - lastBeat > 3 * 60_000) {
+      throw { type: 'peer-unavailable', code: 'ROOM_CLOSED', message: 'صاحب الأوضة مقفّل — الأوضة دي انتهت خلاص' };
     }
 
     const conn = new ChannelConn(this.peerId);

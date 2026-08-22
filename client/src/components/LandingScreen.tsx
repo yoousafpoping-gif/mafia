@@ -192,7 +192,7 @@ export function LandingScreen({
               whileHover={canAct ? { scale: 1.05 } : undefined}
               whileTap={canAct ? { scale: 0.97 } : undefined}
               onClick={onQuickMatch}
-              disabled={!canAct || !connected}
+              disabled={!canAct}
               className="flex min-h-[48px] w-full items-center gap-3 rounded-xl border border-gold-400/70 bg-gradient-to-l from-gold-700/40 via-gold-600/25 to-gold-500/15 px-3.5 shadow-[0_0_20px_rgba(229,181,103,0.18)] transition-shadow duration-200 enabled:hover:shadow-[0_0_34px_rgba(229,181,103,0.4)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               <span className="flex h-9 w-9 shrink-0 animate-pulse items-center justify-center rounded-lg border border-gold-400/70 bg-black/30 text-gold-300">
@@ -286,12 +286,7 @@ export function LandingScreen({
           </nav>
 
           <p className="mt-3 flex items-center justify-center gap-2 text-center text-[11px] text-slate-500">
-            {!connected ? (
-              <>
-                <Loader2 className="h-3 w-3 animate-spin text-gold-400" />
-                بنوصل بالسيرفر...
-              </>
-            ) : busy ? (
+            {busy ? (
               <>
                 <Loader2 className="h-3 w-3 animate-spin text-gold-400" />
                 لحظة..

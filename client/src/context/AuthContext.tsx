@@ -12,6 +12,7 @@ import {
 import {
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
   signOut as firebaseSignOut,
 } from 'firebase/auth';
 import { firebaseAuth, firebaseReady, googleProvider } from '@/lib/firebase';
@@ -136,6 +137,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithGoogle = useCallback(
     async (displayNameFallback?: string) => {
       if (firebaseReady && firebaseAuth && googleProvider) {
+        // الموبايل بيحجب النوافذ المنبثقة — redirect هناك، وبعد الرجوع
+        // onAuthStateChanged بيكمل تسجيل الجلسة لوحده
+        const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+        if (isMobile) {
+          await signInWithRedirect(firebaseAuth, googleProvider);
+          return;
+        }
         const credential = await signInWithPopup(firebaseAuth, googleProvider);
         await applyUser({
           uid: credential.user.uid,
