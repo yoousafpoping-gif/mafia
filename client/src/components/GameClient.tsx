@@ -270,14 +270,18 @@ export function GameClient({ code }: { code: string }) {
       )}
 
       <div className="relative z-10 flex h-full w-full flex-col">
-      <TopBar
-        state={state}
-        connected={status.connected}
-        voice={voice}
-        onOpenHelp={() => setHelpOpen(true)}
-        onOpenLog={() => setLogOpen(true)}
-        onLeave={handleLeave}
-      />
+      {/* التوب بار بيتشال وقت الليل — شاشة الليل ملهاش هيدر،
+          والمايك/الكود/الخروج موجودين جوه الـ NightOverlay نفسها */}
+      {state.phase !== 'NIGHT' && (
+        <TopBar
+          state={state}
+          connected={status.connected}
+          voice={voice}
+          onOpenHelp={() => setHelpOpen(true)}
+          onOpenLog={() => setLogOpen(true)}
+          onLeave={handleLeave}
+        />
+      )}
 
       {state.phase !== 'LOBBY' && (
         <PhaseTransition key={`${state.phase}-${state.round}`} phase={state.phase} round={state.round} />
@@ -342,7 +346,9 @@ export function GameClient({ code }: { code: string }) {
               </div>
             )}
             {(state.phase === 'DAY_VOTING' || state.phase === 'DEFENSE_STAGE') && (
-              <div className="absolute bottom-2 start-2 z-30 max-h-[72%] w-[min(93%,360px)] overflow-y-auto rounded-2xl shadow-2xl">
+              /* موبايل: شيت سفلي كامل العرض مبيغطيش الكروت والأسماء —
+                 ديسكتوب: لوحة جانبية زي ما هي */
+              <div className="absolute inset-x-2 bottom-[4.5rem] z-40 max-h-[62%] overflow-y-auto rounded-2xl shadow-2xl sm:inset-x-auto sm:start-2 sm:w-[min(93%,360px)]">
                 <VotingPanel
                   state={state}
                   voteProgress={game.voteProgress}
@@ -387,6 +393,8 @@ export function GameClient({ code }: { code: string }) {
           state={state}
           actionRequest={game.actionRequest}
           voicePolicy={game.voicePolicy}
+          voice={voice}
+          onLeave={handleLeave}
           onSubmitAbility={game.submitNightAbility}
         />
       )}

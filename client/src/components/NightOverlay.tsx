@@ -2,21 +2,28 @@
 
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Moon, SkipForward, Skull, Timer } from 'lucide-react';
+import { Check, LogOut, Moon, SkipForward, Skull, Timer } from 'lucide-react';
 import { useCountdown } from '@/hooks/useCountdown';
+import { GOLD_ICON } from '@/styles/themeConfig';
 import { RoleAvatar } from './Avatars';
+import { MicButton } from './MicButton';
 import { ABILITY_LABEL, ROLE_META } from '@/lib/roles';
 import type { ActionRequest, GameState, VoicePolicy } from '@/lib/types';
+import type { VoiceController } from '@/hooks/useVoiceChat';
 
 export function NightOverlay({
   state,
   actionRequest,
   voicePolicy,
+  voice,
+  onLeave,
   onSubmitAbility,
 }: {
   state: GameState;
   actionRequest: ActionRequest | null;
   voicePolicy: VoicePolicy | null;
+  voice: VoiceController;
+  onLeave: () => void;
   onSubmitAbility: (targetId: string | null) => void;
 }) {
   const you = state.you!;
@@ -39,12 +46,27 @@ export function NightOverlay({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.6 }}
-      className="starfield fixed inset-0 z-40 flex flex-col items-center overflow-y-auto bg-gradient-to-b from-[#050814] via-[#0a0f24] to-black px-4 py-10"
+      className="starfield fixed inset-0 z-40 flex flex-col items-center overflow-y-auto bg-gradient-to-b from-[#050814] via-[#0a0f24] to-black px-4 pb-8 pt-4"
     >
+      {/* التوب بار بيتشال وقت الليل — الشاشة كلها لليل، والضروريات هنا */}
+      <div className="flex w-full items-center justify-between">
+        <button
+          onClick={onLeave}
+          title="اطلع من الأوضة"
+          className={`flex h-9 w-9 items-center justify-center rounded-full border border-gold-500/25 bg-black/40 ${GOLD_ICON}`}
+        >
+          <LogOut className="h-4 w-4" strokeWidth={1.5} />
+        </button>
+        <span className="rounded-lg border border-gold-500/40 bg-gold-500/10 px-2 py-1 font-mono text-[10px] font-black tracking-widest text-gold-300">
+          {state.code}
+        </span>
+        <MicButton voice={voice} />
+      </div>
+
       <motion.div
         initial={{ y: -30, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="flex items-center gap-3"
+        className="mt-6 flex items-center gap-3"
       >
         <Moon className="h-9 w-9 text-gold-400" />
         <div>

@@ -185,10 +185,9 @@ function registerHostHandlers(host: RoomHost, engine: GameRoom) {
 
   // --- voice signaling (host relays between peers) ---
   host.requestHandlers.set('voice:join', (_p: unknown, socketId: string) => {
-    const remotes = [...host.conns.keys()];
-    const participants = [HOST_SOCKET, ...remotes];
-    const peerList = participants.filter((id) => id !== socketId);
     host.voiceJoined.add(socketId);
+    // المنضم بيفتح اتصالات صوت لمن انضم فعلًا — مش كل الموصليين
+    const peerList = [...host.voiceJoined].filter((id) => id !== socketId);
     if (socketId !== HOST_SOCKET) {
       for (const id of host.voiceJoined) {
         if (id === socketId) continue;
@@ -196,7 +195,8 @@ function registerHostHandlers(host: RoomHost, engine: GameRoom) {
         else host.pushTo(id, 'voice:peer-joined', { socketId });
       }
     }
-    return { peers: peerList };
+    // you = معرف المنضم في شبكة الصوت — لازم لقاعدة حسم تعارض العروض
+    return { peers: peerList, you: socketId };
   });
 
   host.requestHandlers.set('voice:leave', (_p: unknown, socketId: string) => {

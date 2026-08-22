@@ -94,7 +94,7 @@ export function VotingPanel({
               اختار مين يتدفع تمن الليلة
             </p>
           )}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {candidates.map((player) => (
               <CandidateButton
                 key={player.id}
@@ -135,13 +135,13 @@ function CandidateButton({
       whileTap={{ scale: 0.96 }}
       onClick={onSelect}
       layout
-      className={`relative rounded-xl border px-3 py-2.5 text-sm font-medium transition ${
+      className={`relative min-w-0 rounded-xl border px-3 py-2.5 text-sm font-bold transition ${
         selected
           ? 'border-blood-500 bg-blood-600/25 text-white shadow-[0_0_18px_rgba(220,38,38,0.35)]'
-          : 'border-night-600 bg-night-800/70 text-slate-300 hover:border-slate-500'
+          : 'border-night-600 bg-night-800/70 text-slate-200 hover:border-slate-500'
       }`}
     >
-      {player.name}
+      <span className="block break-words leading-snug">{player.name}</span>
       <AnimatePresence>
         {voterNames.map((name) => (
           <motion.span

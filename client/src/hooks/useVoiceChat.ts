@@ -38,6 +38,8 @@ export function useVoiceChat(
   const iceBuffersRef = useRef(new Map<string, RTCIceCandidateInit[]>());
   const joinedRef = useRef(false);
   const micOnRef = useRef(true);
+  // معرفي في شبكة الصوت (socketId) — بيجي مع رد voice:join
+  const myIdRef = useRef<string | null>(null);
 
   // --- Talking detection (WebRTC analysers) ---
   interface AnalyserEntry {
@@ -113,7 +115,18 @@ export function useVoiceChat(
         audioElsRef.current.set(peerId, element);
       }
       element.srcObject = stream;
-      void element.play().catch(() => undefined);
+      void element.play().catch(() => {
+        // الموبايل بيحبب التشغيل التلقائي — أول لمسة/ضغطة بتحاول تفتح الصوت تاني
+        const unlock = () => {
+          for (const el of audioElsRef.current.values()) {
+            void el.play().catch(() => undefined);
+          }
+          window.removeEventListener('pointerdown', unlock);
+          window.removeEventListener('keydown', unlock);
+        };
+        window.addEventListener('pointerdown', unlock, { once: false });
+        window.addEventListener('keydown', unlock, { once: false });
+      });
       attachAnalyser(peerId, stream);
     },
     [attachAnalyser],
@@ -167,11 +180,8 @@ export function useVoiceChat(
       };
 
       pc.onconnectionstatechange = () => {
-        if (
-          pc.connectionState === 'failed' ||
-          pc.connectionState === 'closed' ||
-          pc.connectionState === 'disconnected'
-        ) {
+        // 'disconnected' ممكن يرجع لوحده (ICE بيعيد التوصيل) — بنهدّم بس لما يفشل فعلًا
+        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
           teardownPeer(peerId);
         }
       };
@@ -214,7 +224,8 @@ export function useVoiceChat(
       streamRef.current = stream;
       attachAnalyser('__self__', stream);
 
-      const seat = (await net.request('voice:join')) as { peers: string[] };
+      const seat = (await net.request('voice:join')) as { peers: string[]; you: string };
+      myIdRef.current = seat.you;
       joinedRef.current = true;
       setJoined(true);
 
@@ -254,14 +265,20 @@ export function useVoiceChat(
     const net = getRoomNet();
     if (!net) return;
 
-    const onPeerJoined = ({ socketId }: { socketId: string }) => {
-      if (joinedRef.current) void offerTo(socketId);
-    };
+    // المنضم الجديد هو اللي بيفتح الاتصالات (بيوصل مع رد voice:join) —
+    // الموجودين مايقدموش offers عشان مايتصادمش عرضين ويتدمروا (glare)
 
     const onSignal = async ({ from, data }: { from: string; data: RTCSessionDescriptionInit }) => {
       if (!joinedRef.current) return;
       try {
         const pc = await ensurePeer(from);
+        // تعارض عروض (اتنين دخلو نفس اللحظة): الأصغر معرفًا بيرجع بعرضه
+        // ويقبل الوارد، والأكبر بيتجاهله — النتيجة عرض واحد بس يكسب
+        if (data.type === 'offer' && pc.signalingState === 'have-local-offer') {
+          const polite = (myIdRef.current ?? '') < from;
+          if (!polite) return;
+          await pc.setLocalDescription({ type: 'rollback' }).catch(() => undefined);
+        }
         await pc.setRemoteDescription(data);
         const buffered = iceBuffersRef.current.get(from) ?? [];
         iceBuffersRef.current.set(from, []);
@@ -274,7 +291,8 @@ export function useVoiceChat(
           net.sendVoice('voice:signal', from, { type: answer.type, sdp: answer.sdp });
         }
       } catch {
-        teardownPeer(from);
+        // وصف متأخر/تالف مش نهاية العالم — لو الاتصال فعلًا مكسور
+        // connectionState هيوصل failed وهيتنضف لوحده
       }
     };
 
@@ -290,16 +308,20 @@ export function useVoiceChat(
       }
     };
 
-    net.on('voice:peer-joined', onPeerJoined);
+    const onPeerLeft = ({ socketId }: { socketId: string }) => {
+      teardownPeer(socketId);
+    };
+
     net.on('voice:signal', onSignal);
     net.on('voice:ice', onIce);
+    net.on('voice:peer-left', onPeerLeft);
 
     return () => {
-      net.off('voice:peer-joined', onPeerJoined);
       net.off('voice:signal', onSignal);
       net.off('voice:ice', onIce);
+      net.off('voice:peer-left', onPeerLeft);
     };
-  }, [ensurePeer, offerTo, teardownPeer]);
+  }, [ensurePeer, teardownPeer]);
 
   useEffect(() => {
     for (const [peerId, element] of audioElsRef.current.entries()) {
