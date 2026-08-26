@@ -28,10 +28,10 @@ import {
   firebaseReady,
   googleProvider,
 } from '@/lib/firebase';
-import { SERVER_URL } from '@/lib/config';
 import { enablePushForUser } from '@/lib/pushNotifications';
 import { clearGuestProfile, loadGuestProfile, saveGuestProfile } from '@/lib/guestProfile';
 import type { DailyQuestDefinition } from '@/lib/progressionConfig';
+import { upsertProfile, deleteProfile, updatePlayerName as firestoreUpdateName } from '@/lib/profileFirestore';
 
 export interface AuthUser {
   uid: string;
@@ -61,11 +61,16 @@ export interface PlayerProfile {
   };
   claimedLevelRewards?: number[];
   processedResults?: string[];
+  updatedAt?: string;
+  displayName?: string;
+  photoURL?: string;
+  provider?: string;
 }
 
 interface AuthState {
   user: AuthUser | null;
   profile: PlayerProfile | null;
+  setProfile: React.Dispatch<React.SetStateAction<PlayerProfile | null>>;
   loading: boolean;
   profileLoading: boolean;
   profileError: Error | null;
@@ -153,20 +158,12 @@ function writeGuestSession(user: AuthUser | null) {
   }
 }
 
-export async function authHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
-  const token = await firebaseAuth?.currentUser?.getIdToken();
-  if (!token) throw new Error('الحساب السحابي مطلوب للعملية دي');
-  return { ...extra, Authorization: `Bearer ${token}` };
-}
-
 async function syncProfile(user: AuthUser): Promise<PlayerProfile> {
-  const res = await fetch(`${SERVER_URL}/api/profile`, {
-    method: 'POST',
-    headers: await authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ displayName: user.displayName, photoURL: user.photoURL }),
+  return upsertProfile(user.uid, {
+    displayName: user.displayName,
+    photoURL: user.photoURL,
+    provider: user.provider,
   });
-  if (!res.ok) throw new Error('profile sync failed');
-  return ((await res.json()) as { profile: PlayerProfile }).profile;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -310,12 +307,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const auth = firebaseAuth;
     if (!firebaseReady || !auth) throw new Error('الحسابات السحابية محتاجة إعداد Firebase الأول');
 
-    const response = await fetch(`${SERVER_URL}/api/profile`, {
-      method: 'DELETE',
-      headers: await authHeaders(),
-    });
-    if (!response.ok && response.status !== 404) {
-      throw new Error('مقدرناش نمسح بياناتك من السيرفر — جرب تاني');
+    try {
+      await deleteProfile(user.uid);
+    } catch {
+      /* تجاهل — الحذف من Firestore قد يفشل لو المستند مش موجود */
     }
 
     const fbUser = auth.currentUser;
@@ -384,14 +379,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(next);
       return;
     }
-    const response = await fetch(`${SERVER_URL}/api/profile/player-name`, {
-      method: 'POST',
-      headers: await authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ playerName: name }),
-    });
-    const payload = (await response.json()) as { profile?: PlayerProfile; error?: string };
-    if (!response.ok || !payload.profile) throw new Error(payload.error ?? 'مقدرناش نحفظ الاسم');
-    setProfile(payload.profile);
+    const updated = await firestoreUpdateName(user.uid, name);
+    setProfile(updated);
   }, [user]);
 
   const updateGuestProfile = useCallback((updater: (current: PlayerProfile) => PlayerProfile) => {
@@ -405,6 +394,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo(() => ({
     user,
     profile,
+    setProfile,
     loading,
     profileLoading,
     profileError,
@@ -421,7 +411,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshProfileSilent,
     setPlayerName,
     updateGuestProfile,
-  }), [user, profile, loading, profileLoading, profileError, authError, signInWithGoogle, signInWithFacebook, continueAsGuest, signOut, deleteAccount, refreshProfile, refreshProfileSilent, setPlayerName, updateGuestProfile]);
+  }), [user, profile, setProfile, loading, profileLoading, profileError, authError, signInWithGoogle, signInWithFacebook, continueAsGuest, signOut, deleteAccount, refreshProfile, refreshProfileSilent, setPlayerName, updateGuestProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

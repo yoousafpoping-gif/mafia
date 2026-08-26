@@ -3,20 +3,8 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Coins, Crown, Loader2, Trophy, X } from 'lucide-react';
-import { SERVER_URL } from '@/lib/config';
 import { useAuth } from '@/context/AuthContext';
-
-interface LeaderRow {
-  uid: string;
-  displayName: string;
-  photoURL: string;
-  rank: string;
-  coins: number;
-  wins: number;
-  totalGames: number;
-  weeklyWins: number;
-  weeklyGames: number;
-}
+import { fetchLeaderboard, type LeaderRow } from '@/lib/profileFirestore';
 
 /** لوحة صدارة الأسبوع — أعلى 10 بالانتخابات الأسبوعية ونسبة الفوز */
 export function LeaderboardModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -28,18 +16,13 @@ export function LeaderboardModal({ open, onClose }: { open: boolean; onClose: ()
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    // تصفير الحالة القديمة مؤجّل — setState مباشر جوه الإفكت بيعمل cascading renders
     const reset = window.setTimeout(() => {
       if (cancelled) return;
       setRows(null);
       setFailed(false);
     }, 0);
-    fetch(`${SERVER_URL}/api/leaderboard`)
-      .then((res) => {
-        if (!res.ok) throw new Error('bad status');
-        return res.json();
-      })
-      .then((data: { weekKey: string; players: LeaderRow[] }) => {
+    fetchLeaderboard()
+      .then((data) => {
         if (cancelled) return;
         setRows(data.players);
         setWeekKey(data.weekKey ?? '');
@@ -170,7 +153,7 @@ export function LeaderboardModal({ open, onClose }: { open: boolean; onClose: ()
                         </span>
                         <span className="shrink-0 text-left">
                           <span className="block font-mono text-sm font-black text-gold-300">
-                            {row.weeklyWins}فوز
+                            {row.wins} فوز
                           </span>
                           <span className="block font-mono text-[9px] text-slate-500">
                             نسبة {winRate}% · {row.totalGames} لعبة

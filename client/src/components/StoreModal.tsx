@@ -16,9 +16,18 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
-import { authHeaders, useAuth, type PlayerProfile } from '@/context/AuthContext';
-import { SERVER_URL } from '@/lib/config';
+import { useAuth, type PlayerProfile } from '@/context/AuthContext';
 import { claimGuestDaily, guestDailyInfo } from '@/lib/guestProfile';
+import {
+  purchaseFirestore,
+  equipFirestore,
+  openBoxFirestore,
+  claimDailyGiftFirestore,
+  convertCoinsFirestore,
+  buildDailyInfo,
+  fetchProfile,
+  type BoxResult,
+} from '@/lib/profileFirestore';
 import {
   COSMETICS,
   RARITY_BADGE,
@@ -50,14 +59,6 @@ interface DailyInfo {
   gift: { claimable: boolean; streak: number; canKeepStreak: boolean; nextCoins: number; nextGems: number };
 }
 
-/** نتيجة فتح صندوق — بتترجع من السيرفر حتى لو الطلب اتكرر */
-interface BoxResult {
-  won: string | null;
-  rarity: string | null;
-  refund: number | null;
-  refundCurrency: 'coins' | 'gems' | null;
-}
-
 const ARABIC_ERRORS: Record<string, string> = {
   INSUFFICIENT_COINS: 'رصيد الكوينز مش كفاية',
   INSUFFICIENT_GEMS: 'الجواهر مش كفاية',
@@ -65,22 +66,10 @@ const ARABIC_ERRORS: Record<string, string> = {
   DAILY_CLAIMED: 'استلمت هدية النهاردة خلاص — ارجع بكرة',
   ITEM_NOT_FOUND: 'العنصر مش موجود',
   ITEM_NOT_OWNED: 'مش مالك العنصر ده',
-  IDEMPOTENCY_REQUIRED: 'العملية اتكررت — جرب تاني',
 };
 
-async function storePost(path: string, body: Record<string, unknown>) {
-  const res = await fetch(`${SERVER_URL}${path}`, {
-    method: 'POST',
-    headers: await authHeaders({ 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() }),
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? 'STORE_ERROR');
-  return data;
-}
-
 export function StoreModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { user, profile, refreshProfileSilent, updateGuestProfile } = useAuth();
+  const { user, profile, setProfile, updateGuestProfile } = useAuth();
   const isGuest = user?.provider === 'guest';
   const [tab, setTab] = useState<StoreTab>('cardFrame');
   const [busy, setBusy] = useState('');
@@ -100,14 +89,7 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
       if (profile) setDaily(guestDailyInfo(profile, COSMETICS));
       return;
     }
-    // لا نستخدم refreshProfile() هنا لأنها تفعّل profileLoading
-    // وتخفي واجهة اللعبة بالكامل عبر PlayerNameGateBoundary.
-    // الحالة اليومية (العروض + الهدية) بنجلبها من السيرفر مباشرة.
-    authHeaders()
-      .then((headers) => fetch(`${SERVER_URL}/api/store/daily`, { headers }))
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: DailyInfo | null) => setDaily(d))
-      .catch(() => setDaily(null));
+    if (profile) setDaily(buildDailyInfo(profile));
   }, [open, isGuest]);
 
   const inventory = useMemo(() => new Set(profile?.inventory ?? []), [profile]);
@@ -142,8 +124,11 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
           };
         });
       } else {
-        await storePost(`/api/store/${action}`, { itemId: item.id });
-        await refreshProfileSilent();
+        const next = action === 'purchase'
+          ? await purchaseFirestore(user!.uid, item.id)
+          : await equipFirestore(user!.uid, item.id);
+        setProfile(next);
+        setDaily(buildDailyInfo(next));
       }
     } catch (err) {
       setError(ARABIC_ERRORS[err instanceof Error ? err.message : ''] ?? 'العملية فشلت — جرب تاني');
@@ -176,8 +161,9 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
         });
         setBoxResult({ box, result: localResult });
       } else {
-        const result = (await storePost('/api/store/open-box', { boxId: box.id })) as BoxResult;
-        await refreshProfileSilent();
+        const result = await openBoxFirestore(user!.uid, box.id);
+        const fresh = await fetchProfile(user!.uid);
+        if (fresh) setProfile(fresh);
         setBoxResult({ box, result });
       }
     } catch (err) {
@@ -194,13 +180,9 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
       if (isGuest) {
         updateGuestProfile((current) => claimGuestDaily(current));
       } else {
-        await storePost('/api/store/claim-daily', {});
-        await refreshProfileSilent();
-        const fresh = await authHeaders()
-          .then((headers) => fetch(`${SERVER_URL}/api/store/daily`, { headers }))
-          .then((r) => (r.ok ? r.json() : null))
-          .catch(() => null);
-        if (fresh) setDaily(fresh as DailyInfo);
+        const next = await claimDailyGiftFirestore(user!.uid);
+        setProfile(next);
+        setDaily(buildDailyInfo(next));
       }
     } catch (err) {
       setError(ARABIC_ERRORS[err instanceof Error ? err.message : ''] ?? 'استلام الهدية فشل');
@@ -219,8 +201,8 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
           return { ...current, coins: current.coins - 500, gems: current.gems + 5 };
         });
       } else {
-        await storePost('/api/store/convert', {});
-        await refreshProfileSilent();
+        const next = await convertCoinsFirestore(user!.uid);
+        setProfile(next);
       }
     } catch (err) {
       setError(ARABIC_ERRORS[err instanceof Error ? err.message : ''] ?? 'التحويل فشل');

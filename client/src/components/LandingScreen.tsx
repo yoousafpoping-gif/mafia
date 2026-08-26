@@ -6,9 +6,13 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useAudioSettings } from '@/context/AudioContext';
 import { GAME_LOGO, GAME_TITLE } from '@/lib/branding';
 import type { RoomSettingsState } from '@/lib/types';
-import { authHeaders, useAuth } from '@/context/AuthContext';
-import { SERVER_URL } from '@/lib/config';
+import { useAuth } from '@/context/AuthContext';
 import { claimGuestDaily, claimGuestLoginReward, claimGuestQuest, guestDailyInfo } from '@/lib/guestProfile';
+import {
+  claimDailyGiftFirestore,
+  claimQuestFirestore,
+  claimLoginRewardFirestore,
+} from '@/lib/profileFirestore';
 import { CustomRoomModal } from './CustomRoomModal';
 import { StoreModal } from './StoreModal';
 import { HomeTopBar } from './HomeTopBar';
@@ -60,7 +64,7 @@ export function LandingScreen({
   const [loginRewardsOpen, setLoginRewardsOpen] = useState(false);
   const [rewardBusy, setRewardBusy] = useState('');
   const [rewardMessage, setRewardMessage] = useState('');
-  const { user, profile, refreshProfileSilent, updateGuestProfile } = useAuth();
+  const { user, profile, setProfile, updateGuestProfile } = useAuth();
   const canAct = Boolean(profile?.playerName) && !busy;
   const dailyInfo = useMemo(() => profile ? guestDailyInfo(profile, []) : null, [profile]);
 
@@ -72,14 +76,10 @@ export function LandingScreen({
       if (user.provider === 'guest') {
         updateGuestProfile((current) => kind === 'gift' ? claimGuestDaily(current) : claimGuestQuest(current, questId ?? ''));
       } else {
-        const response = await fetch(`${SERVER_URL}${kind === 'gift' ? '/api/store/claim-daily' : '/api/profile/quests/claim'}`, {
-          method: 'POST',
-          headers: await authHeaders({ 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() }),
-          body: JSON.stringify(kind === 'gift' ? {} : { questId }),
-        });
-        const payload = await response.json().catch(() => ({})) as { error?: string };
-        if (!response.ok) throw new Error(payload.error ?? 'CLAIM_FAILED');
-        await refreshProfileSilent();
+        const next = kind === 'gift'
+          ? await claimDailyGiftFirestore(user.uid)
+          : await claimQuestFirestore(user.uid, questId ?? '');
+        setProfile(next);
       }
       setRewardMessage('تم التحصيل وإضافة المكافأة لرصيدك');
     } catch (error) {
@@ -97,14 +97,8 @@ export function LandingScreen({
     try {
       if (user.provider === 'guest') updateGuestProfile((current) => claimGuestLoginReward(current, day));
       else {
-        const response = await fetch(`${SERVER_URL}/api/profile/login-rewards/claim`, {
-          method: 'POST',
-          headers: await authHeaders({ 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() }),
-          body: JSON.stringify({ day }),
-        });
-        const payload = await response.json().catch(() => ({})) as { error?: string };
-        if (!response.ok) throw new Error(payload.error ?? 'CLAIM_FAILED');
-        await refreshProfileSilent();
+        const next = await claimLoginRewardFirestore(user.uid, day);
+        setProfile(next);
       }
       setRewardMessage('تم استلام مكافأة اليوم');
     } catch (error) {

@@ -7,10 +7,10 @@ import { ChevronDown, ChevronUp, Loader2, UserX } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useMafiaGame } from '@/hooks/useMafiaGame';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
-import { authHeaders, useAuth } from '@/context/AuthContext';
-import { SERVER_URL } from '@/lib/config';
+import { useAuth } from '@/context/AuthContext';
 import { backgroundImage } from '@/lib/cosmetics';
 import { recordGuestResult } from '@/lib/guestProfile';
+import { recordGameResultFirestore } from '@/lib/profileFirestore';
 import { playSound, playNarrator, stopNarrator } from '@/lib/audioManager';
 import { playSfx, initGlobalSfx, startAmbientRain, stopAmbientRain, startNightAmbient, stopNightAmbient } from '@/lib/sfx';
 import { localNotify, syncRoomPushBinding } from '@/lib/pushNotifications';
@@ -186,17 +186,20 @@ export function GameClient({ code }: { code: string }) {
       }));
       return;
     }
+    const seat = result.roster?.find((entry) => entry.id === verification.playerId);
+    if (!seat) return;
+    const playerTeam = ['MAFIA_BOSS', 'MAFIOSO', 'SILENCER', 'FRAMER'].includes(seat.role)
+      ? 'MAFIA' : seat.role === 'JOKER' ? 'NEUTRAL' : 'TOWN';
     void (async () => {
       try {
-        const response = await fetch(`${SERVER_URL}/api/profile/result`, {
-          method: 'POST',
-          headers: await authHeaders({
-            'Content-Type': 'application/json',
-            'Idempotency-Key': `result:${verification.roomCode}:${verification.playerId}`,
-          }),
-          body: JSON.stringify(verification),
+        const updated = await recordGameResultFirestore(authUser.uid, {
+          idempotencyKey: `result:${verification.roomCode}:${verification.playerId}`,
+          winner: result.winner,
+          playerTeam,
+          role: seat.role,
+          alive: seat.isAlive,
         });
-        if (response.ok) await refreshProfile();
+        if (updated) await refreshProfile();
       } catch {
         /* لا fallback محلي: المكافآت الدائمة تتطلب نتيجة backend موثوقة. */
       }
