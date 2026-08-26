@@ -75,41 +75,21 @@ function currentWeekKey() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Catalog mirror — client-side pricing (must match server catalog)    */
+/*  Catalog — shared with storeCatalog.ts                              */
 /* ------------------------------------------------------------------ */
 
-const CATALOG: Record<string, { price: number; currency: 'coins' | 'gems'; type: string; rarity: string; odds?: Record<string, number> }> = {
-  'frame-classic':  { price: 0,    currency: 'coins', type: 'cardFrame', rarity: 'common' },
-  'frame-blood':    { price: 350,  currency: 'coins', type: 'cardFrame', rarity: 'rare' },
-  'frame-gold':     { price: 900,  currency: 'coins', type: 'cardFrame', rarity: 'epic' },
-  'frame-neon':     { price: 650,  currency: 'coins', type: 'cardFrame', rarity: 'rare' },
-  'frame-ice':      { price: 500,  currency: 'coins', type: 'cardFrame', rarity: 'rare' },
-  'frame-emerald':  { price: 750,  currency: 'coins', type: 'cardFrame', rarity: 'epic' },
-  'frame-noir':     { price: 450,  currency: 'coins', type: 'cardFrame', rarity: 'rare' },
-  'frame-royal':    { price: 1400, currency: 'coins', type: 'cardFrame', rarity: 'legendary' },
-  'frame-venom':    { price: 850,  currency: 'coins', type: 'cardFrame', rarity: 'epic' },
-  'frame-inferno':  { price: 1200, currency: 'coins', type: 'cardFrame', rarity: 'legendary' },
-  'frame-pharaoh':  { price: 20,   currency: 'gems',  type: 'cardFrame', rarity: 'legendary' },
-  'frame-void':     { price: 30,   currency: 'gems',  type: 'cardFrame', rarity: 'legendary' },
-  'title-detective':{ price: 400,  currency: 'coins', type: 'title', rarity: 'rare' },
-  'title-don':      { price: 1000, currency: 'coins', type: 'title', rarity: 'epic' },
-  'title-ghost':    { price: 600,  currency: 'coins', type: 'title', rarity: 'rare' },
-  'title-godfather':{ price: 750,  currency: 'coins', type: 'title', rarity: 'epic' },
-  'title-king':     { price: 25,   currency: 'gems',  type: 'title', rarity: 'legendary' },
-  'emote-shush':    { price: 300,  currency: 'coins', type: 'emote', rarity: 'rare' },
-  'emote-target':   { price: 350,  currency: 'coins', type: 'emote', rarity: 'rare' },
-  'emote-fire':     { price: 450,  currency: 'coins', type: 'emote', rarity: 'epic' },
-  'emote-skull':    { price: 550,  currency: 'coins', type: 'emote', rarity: 'epic' },
-  'emote-money':    { price: 400,  currency: 'coins', type: 'emote', rarity: 'rare' },
-  'emote-clap-gold':{ price: 18,   currency: 'gems',  type: 'emote', rarity: 'legendary' },
-  'bg-city':        { price: 500,  currency: 'coins', type: 'background', rarity: 'rare' },
-  'bg-blood-moon':  { price: 700,  currency: 'coins', type: 'background', rarity: 'epic' },
-  'bg-casino':      { price: 800,  currency: 'coins', type: 'background', rarity: 'epic' },
-  'bg-royal':       { price: 10,   currency: 'gems',  type: 'background', rarity: 'legendary' },
-  'box-basic':      { price: 400,  currency: 'coins', type: 'lootBox', rarity: 'rare', odds: { common: 55, rare: 30, epic: 12, legendary: 3 } },
-  'box-golden':     { price: 5,    currency: 'gems',  type: 'lootBox', rarity: 'epic', odds: { common: 0, rare: 45, epic: 38, legendary: 17 } },
-  'box-legendary':  { price: 15,   currency: 'gems',  type: 'lootBox', rarity: 'legendary', odds: { common: 0, rare: 30, epic: 45, legendary: 25 } },
-};
+import { getCatalogSync } from '@/lib/storeCatalog';
+
+type CatalogEntry = { price: number; currency: 'coins' | 'gems'; type: string; rarity: string; odds?: Record<string, number> };
+
+function catalogMap(): Record<string, CatalogEntry> {
+  const items = getCatalogSync();
+  const map: Record<string, CatalogEntry> = {};
+  for (const item of items) {
+    map[item.id] = { price: item.price, currency: item.currency, type: item.type, rarity: item.rarity, odds: item.odds };
+  }
+  return map;
+}
 
 const CONVERT_RATE = { coins: 500, gems: 5 };
 
@@ -221,7 +201,7 @@ function hashSeed(text: string) {
 export interface DailyDeal { itemId: string; price: number; originalPrice: number }
 
 export function dailyDeals(dayKey: string, count = 3): DailyDeal[] {
-  const eligible = Object.entries(CATALOG)
+  const eligible = Object.entries(catalogMap())
     .filter(([, v]) => v.type !== 'lootBox' && v.price >= DEAL_PRICE_MIN && v.currency !== 'gems')
     .map(([id, v]) => ({ id, price: v.price }));
   const picks: DailyDeal[] = [];
@@ -320,7 +300,8 @@ export async function updatePlayerName(uid: string, name: string): Promise<Playe
 /* ------------------------------------------------------------------ */
 
 export async function purchaseFirestore(uid: string, itemId: string): Promise<PlayerProfile> {
-  const item = CATALOG[itemId];
+  const cat = catalogMap();
+  const item = cat[itemId];
   if (!item || item.type === 'lootBox') throw new Error('ITEM_NOT_FOUND');
   return runTransaction(db(), async (tx) => {
     const ref = doc(db(), PROFILES, uid);
@@ -346,7 +327,8 @@ export async function purchaseFirestore(uid: string, itemId: string): Promise<Pl
 }
 
 export async function equipFirestore(uid: string, itemId: string): Promise<PlayerProfile> {
-  const item = CATALOG[itemId];
+  const cat = catalogMap();
+  const item = cat[itemId];
   if (!item || item.type === 'lootBox') throw new Error('ITEM_NOT_FOUND');
   return runTransaction(db(), async (tx) => {
     const ref = doc(db(), PROFILES, uid);
@@ -375,7 +357,7 @@ export interface BoxResult {
 
 function drawLoot(inventory: string[], box: { odds: Record<string, number>; price: number; currency: string }): { type: 'item'; id: string; rarity: string } | { type: 'refund'; amount: number; currency: string } {
   const rarities = ['common', 'rare', 'epic', 'legendary'];
-  const available = Object.entries(CATALOG).filter(([id, v]) => v.type !== 'lootBox' && !inventory.includes(id));
+  const available = Object.entries(catalogMap()).filter(([id, v]) => v.type !== 'lootBox' && !inventory.includes(id));
   for (let attempt = 0; attempt < 8; attempt += 1) {
     let roll = Math.random() * 100;
     let picked: string | null = null;
@@ -399,7 +381,8 @@ function drawLoot(inventory: string[], box: { odds: Record<string, number>; pric
 }
 
 export async function openBoxFirestore(uid: string, boxId: string): Promise<BoxResult> {
-  const box = CATALOG[boxId];
+  const cat = catalogMap();
+  const box = cat[boxId];
   if (!box || box.type !== 'lootBox' || !box.odds) throw new Error('ITEM_NOT_FOUND');
   return runTransaction(db(), async (tx) => {
     const ref = doc(db(), PROFILES, uid);

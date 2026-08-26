@@ -28,12 +28,11 @@ import {
   fetchProfile,
   type BoxResult,
 } from '@/lib/profileFirestore';
+import { fetchStoreCatalog, seedStoreToFirestore, type CosmeticItem } from '@/lib/storeCatalog';
 import {
-  COSMETICS,
   RARITY_BADGE,
   RARITY_LABEL,
   cosmeticById,
-  type CosmeticItem,
 } from '@/lib/cosmetics';
 
 type StoreTab = 'cardFrame' | 'title' | 'emote' | 'background' | 'lootBox' | 'daily';
@@ -76,6 +75,8 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
   const [error, setError] = useState('');
   const [daily, setDaily] = useState<DailyInfo | null>(null);
   const [boxResult, setBoxResult] = useState<{ box: CosmeticItem; result: BoxResult } | null>(null);
+  const [catalog, setCatalog] = useState<CosmeticItem[] | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -84,13 +85,28 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
       setBoxResult(null);
       return;
     }
+    if (catalog) return;
+    setCatalogLoading(true);
+    fetchStoreCatalog()
+      .then((items) => {
+        setCatalog(items);
+        if (items.length === 0) return seedStoreToFirestore().then(() => fetchStoreCatalog());
+        return undefined;
+      })
+      .then((items) => { if (items) setCatalog(items); })
+      .catch(() => {})
+      .finally(() => setCatalogLoading(false));
+  }, [open, catalog]);
+
+  useEffect(() => {
+    if (!open || !catalog) return;
     console.log('[StoreModal] opened — isGuest:', isGuest, 'profile:', profile ?? 'null');
     if (isGuest) {
-      if (profile) setDaily(guestDailyInfo(profile, COSMETICS));
+      if (profile) setDaily(guestDailyInfo(profile, catalog));
       return;
     }
     if (profile) setDaily(buildDailyInfo(profile));
-  }, [open, isGuest]);
+  }, [open, isGuest, catalog]);
 
   const inventory = useMemo(() => new Set(profile?.inventory ?? []), [profile]);
   const dealByItem = useMemo(() => {
@@ -146,7 +162,7 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
         updateGuestProfile((current) => {
           if (box.currency === 'gems' && current.gems < box.price) throw new Error('INSUFFICIENT_GEMS');
           if (box.currency === 'coins' && current.coins < box.price) throw new Error('INSUFFICIENT_COINS');
-          const available = COSMETICS.filter((item) => item.type !== 'lootBox' && !current.inventory.includes(item.id));
+          const available = (catalog ?? []).filter((item) => item.type !== 'lootBox' && !current.inventory.includes(item.id));
           const won = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : null;
           const refund = won ? 0 : Math.max(1, Math.floor(box.price / 2));
           localResult = won
@@ -276,9 +292,18 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
             )}
 
             <div className="custom-scrollbar flex-1 overflow-y-auto p-4">
-              {tab === 'cardFrame' && (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                  {COSMETICS.filter((i) => i.type === 'cardFrame').map((item) => (
+              {catalogLoading && (
+                <div className="flex flex-col items-center justify-center gap-3 py-16 text-gold-300">
+                  <Loader2 className="h-8 w-8 animate-spin text-gold-400" />
+                  <span className="text-sm">جاري تحميل المتجر...</span>
+                </div>
+              )}
+
+              {!catalogLoading && catalog && (
+                <>
+                  {tab === 'cardFrame' && (
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                      {catalog.filter((i) => i.type === 'cardFrame').map((item) => (
                     <FrameTile
                       key={item.id}
                       item={item}
@@ -294,7 +319,7 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
 
               {tab === 'title' && (
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {COSMETICS.filter((i) => i.type === 'title').map((item) => (
+                  {catalog.filter((i) => i.type === 'title').map((item) => (
                     <RowTile
                       key={item.id}
                       item={item}
@@ -311,7 +336,7 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
 
               {tab === 'emote' && (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {COSMETICS.filter((i) => i.type === 'emote').map((item) => (
+                  {catalog.filter((i) => i.type === 'emote').map((item) => (
                     <EmoteTile key={item.id} item={item} isOwned={owned(item.id)} busy={busy === `purchase:${item.id}`} onAct={() => void act('purchase', item)} />
                   ))}
                 </div>
@@ -319,7 +344,7 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
 
               {tab === 'background' && (
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {COSMETICS.filter((i) => i.type === 'background').map((item) => (
+                  {catalog.filter((i) => i.type === 'background').map((item) => (
                     <BackgroundTile
                       key={item.id}
                       item={item}
@@ -335,7 +360,7 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
 
               {tab === 'lootBox' && (
                 <div className="grid gap-3 sm:grid-cols-3">
-                  {COSMETICS.filter((i) => i.type === 'lootBox').map((box) => (
+                  {catalog.filter((i) => i.type === 'lootBox').map((box) => (
                     <BoxCard key={box.id} box={box} busy={busy === `box:${box.id}`} onOpen={() => void openBox(box)} />
                   ))}
                   <p className="col-span-full mt-1 text-center text-[11px] text-slate-500">
@@ -346,6 +371,8 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
 
               {tab === 'daily' && (
                 <DailyTab daily={daily} busy={busy} onClaim={() => void claimDaily()} onConvert={() => void convert()} />
+              )}
+                </>
               )}
             </div>
 
