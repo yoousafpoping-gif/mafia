@@ -22,14 +22,21 @@ const COLLECTION = 'store_catalog';
 const DOC_ID = 'items';
 
 let cachedCatalog: CosmeticItem[] | null = null;
+let firestoreChecked = false;
 
-/** Returns the catalog — from cache, Firestore, or hardcoded fallback. */
+/**
+ * Returns the catalog.
+ * - If Firestore has data → returns it and caches.
+ * - If Firestore is available but doc is missing → returns [] so caller can seed.
+ * - If Firestore is unavailable (offline, no config) → returns hardcoded fallback.
+ */
 export async function fetchStoreCatalog(): Promise<CosmeticItem[]> {
   if (cachedCatalog) return cachedCatalog;
   try {
     const db = firebaseDb;
     if (!db) throw new Error('no firestore');
     const snap = await getDoc(doc(db, COLLECTION, DOC_ID));
+    firestoreChecked = true;
     if (snap.exists()) {
       const data = snap.data() as { items?: CosmeticItem[] };
       if (Array.isArray(data.items) && data.items.length > 0) {
@@ -37,9 +44,12 @@ export async function fetchStoreCatalog(): Promise<CosmeticItem[]> {
         return cachedCatalog;
       }
     }
+    /* Firestore is reachable but document is empty/missing → return [] */
+    return [];
   } catch {
-    /* Firestore unavailable — use fallback */
+    /* Firestore unavailable — fall through to hardcoded */
   }
+  firestoreChecked = true;
   cachedCatalog = COSMETICS;
   return cachedCatalog;
 }
