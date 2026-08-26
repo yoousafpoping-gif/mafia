@@ -60,7 +60,7 @@ export function LandingScreen({
   const [loginRewardsOpen, setLoginRewardsOpen] = useState(false);
   const [rewardBusy, setRewardBusy] = useState('');
   const [rewardMessage, setRewardMessage] = useState('');
-  const { user, profile, refreshProfile, updateGuestProfile } = useAuth();
+  const { user, profile, refreshProfileSilent, updateGuestProfile } = useAuth();
   const canAct = Boolean(profile?.playerName) && !busy;
   const dailyInfo = useMemo(() => profile ? guestDailyInfo(profile, []) : null, [profile]);
 
@@ -79,7 +79,7 @@ export function LandingScreen({
         });
         const payload = await response.json().catch(() => ({})) as { error?: string };
         if (!response.ok) throw new Error(payload.error ?? 'CLAIM_FAILED');
-        await refreshProfile();
+        await refreshProfileSilent();
       }
       setRewardMessage('تم التحصيل وإضافة المكافأة لرصيدك');
     } catch (error) {
@@ -104,7 +104,7 @@ export function LandingScreen({
         });
         const payload = await response.json().catch(() => ({})) as { error?: string };
         if (!response.ok) throw new Error(payload.error ?? 'CLAIM_FAILED');
-        await refreshProfile();
+        await refreshProfileSilent();
       }
       setRewardMessage('تم استلام مكافأة اليوم');
     } catch (error) {

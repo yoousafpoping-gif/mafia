@@ -80,7 +80,7 @@ async function storePost(path: string, body: Record<string, unknown>) {
 }
 
 export function StoreModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { user, profile, profileLoading, profileError, refreshProfile, updateGuestProfile } = useAuth();
+  const { user, profile, refreshProfileSilent, updateGuestProfile } = useAuth();
   const isGuest = user?.provider === 'guest';
   const [tab, setTab] = useState<StoreTab>('cardFrame');
   const [busy, setBusy] = useState('');
@@ -95,18 +95,20 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
       setBoxResult(null);
       return;
     }
+    console.log('[StoreModal] opened — isGuest:', isGuest, 'profile:', profile ?? 'null');
     if (isGuest) {
       if (profile) setDaily(guestDailyInfo(profile, COSMETICS));
       return;
     }
-    void refreshProfile().catch(() => undefined);
-    // حالة اليوم (العروض + الهدية) — لو فشلت نكمل بالأسعار الأصلية
+    // لا نستخدم refreshProfile() هنا لأنها تفعّل profileLoading
+    // وتخفي واجهة اللعبة بالكامل عبر PlayerNameGateBoundary.
+    // الحالة اليومية (العروض + الهدية) بنجلبها من السيرفر مباشرة.
     authHeaders()
       .then((headers) => fetch(`${SERVER_URL}/api/store/daily`, { headers }))
       .then((r) => (r.ok ? r.json() : null))
       .then((d: DailyInfo | null) => setDaily(d))
       .catch(() => setDaily(null));
-  }, [open, isGuest, profile, refreshProfile]);
+  }, [open, isGuest]);
 
   const inventory = useMemo(() => new Set(profile?.inventory ?? []), [profile]);
   const dealByItem = useMemo(() => {
@@ -141,7 +143,7 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
         });
       } else {
         await storePost(`/api/store/${action}`, { itemId: item.id });
-        await refreshProfile();
+        await refreshProfileSilent();
       }
     } catch (err) {
       setError(ARABIC_ERRORS[err instanceof Error ? err.message : ''] ?? 'العملية فشلت — جرب تاني');
@@ -175,7 +177,7 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
         setBoxResult({ box, result: localResult });
       } else {
         const result = (await storePost('/api/store/open-box', { boxId: box.id })) as BoxResult;
-        await refreshProfile();
+        await refreshProfileSilent();
         setBoxResult({ box, result });
       }
     } catch (err) {
@@ -193,7 +195,7 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
         updateGuestProfile((current) => claimGuestDaily(current));
       } else {
         await storePost('/api/store/claim-daily', {});
-        await refreshProfile();
+        await refreshProfileSilent();
         const fresh = await authHeaders()
           .then((headers) => fetch(`${SERVER_URL}/api/store/daily`, { headers }))
           .then((r) => (r.ok ? r.json() : null))
@@ -218,7 +220,7 @@ export function StoreModal({ open, onClose }: { open: boolean; onClose: () => vo
         });
       } else {
         await storePost('/api/store/convert', {});
-        await refreshProfile();
+        await refreshProfileSilent();
       }
     } catch (err) {
       setError(ARABIC_ERRORS[err instanceof Error ? err.message : ''] ?? 'التحويل فشل');

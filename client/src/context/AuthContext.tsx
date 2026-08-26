@@ -79,6 +79,7 @@ interface AuthState {
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  refreshProfileSilent: () => Promise<void>;
   setPlayerName: (name: string) => Promise<void>;
   updateGuestProfile: (updater: (current: PlayerProfile) => PlayerProfile) => void;
 }
@@ -357,6 +358,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await loadProfile(user, syncGeneration.current);
   }, [user, loadProfile]);
 
+  /** تحديث البروفايل من السيرفر بدون تفعيل profileLoading — عشان المتجر
+      والعمليات ما تخفيش الواجهة كلها. */
+  const refreshProfileSilent = useCallback(async () => {
+    if (!user || user.provider === 'guest') return;
+    try {
+      const fresh = await syncProfile(user);
+      if (mounted.current) setProfile(fresh);
+    } catch {
+      /* تجاهل — البيانات القديمة لسه صالحة */
+    }
+  }, [user]);
+
   const setPlayerName = useCallback(async (name: string) => {
     if (!user) throw new Error('سجّل الدخول الأول');
     if (user.provider === 'guest') {
@@ -405,9 +418,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
     deleteAccount,
     refreshProfile,
+    refreshProfileSilent,
     setPlayerName,
     updateGuestProfile,
-  }), [user, profile, loading, profileLoading, profileError, authError, signInWithGoogle, signInWithFacebook, continueAsGuest, signOut, deleteAccount, refreshProfile, setPlayerName, updateGuestProfile]);
+  }), [user, profile, loading, profileLoading, profileError, authError, signInWithGoogle, signInWithFacebook, continueAsGuest, signOut, deleteAccount, refreshProfile, refreshProfileSilent, setPlayerName, updateGuestProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
