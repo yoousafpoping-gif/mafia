@@ -1,5 +1,6 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, Loader2, LogIn, ShieldCheck, UserRound } from 'lucide-react';
@@ -7,7 +8,10 @@ import { useAuth } from '@/context/AuthContext';
 import { GAME_LOGO, GAME_TITLE } from '@/lib/branding';
 import { PlayerNameGate } from './PlayerNameGate';
 
+const PUBLIC_ROUTES = ['/privacy'];
+
 export function AuthGate({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const {
     user,
     loading,
@@ -23,6 +27,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (authError) setError(authError.message);
   }, [authError]);
+
+  if (PUBLIC_ROUTES.includes(pathname)) return children;
 
   const run = async (provider: 'google' | 'facebook' | 'guest') => {
     setBusy(provider);

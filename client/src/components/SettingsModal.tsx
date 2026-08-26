@@ -104,6 +104,17 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
             <p className="mt-5 text-center text-[11px] italic text-slate-400">
               الإعدادات بتتحفظ على جهازك وتشيل معاكها لأي أوضة
             </p>
+
+            <div className="mt-4 border-t border-gold-500/15 pt-4 text-center">
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[11px] text-slate-500 underline decoration-slate-600 underline-offset-2 transition hover:text-gold-300"
+              >
+                سياسة الخصوصية
+              </a>
+            </div>
           </motion.div>
         </motion.div>
       )}

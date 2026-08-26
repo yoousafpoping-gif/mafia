@@ -292,6 +292,18 @@ export function LandingScreen({
               'من 4 لـ 12 لاعب · كل واحد على جهازه'
             )}
           </p>
+
+          <p className="mt-2 text-center text-[11px] text-slate-500">
+            باستخدامك للعبة، أنت توافق على{' '}
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-slate-400 underline decoration-slate-600 underline-offset-2 transition hover:text-gold-300"
+            >
+              سياسة الخصوصية
+            </a>
+          </p>
         </motion.div>
       </div>
 
