@@ -12,8 +12,10 @@ import {
 } from 'react';
 import {
   browserSessionPersistence,
+  deleteUser,
   getRedirectResult,
   onAuthStateChanged,
+  reauthenticateWithPopup,
   setPersistence,
   signInWithPopup,
   signOut as firebaseSignOut,
@@ -28,7 +30,7 @@ import {
 } from '@/lib/firebase';
 import { SERVER_URL } from '@/lib/config';
 import { enablePushForUser } from '@/lib/pushNotifications';
-import { loadGuestProfile, saveGuestProfile } from '@/lib/guestProfile';
+import { clearGuestProfile, loadGuestProfile, saveGuestProfile } from '@/lib/guestProfile';
 import type { DailyQuestDefinition } from '@/lib/progressionConfig';
 
 export interface AuthUser {
@@ -75,6 +77,7 @@ interface AuthState {
   signInWithFacebook: () => Promise<void>;
   continueAsGuest: () => Promise<void>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   setPlayerName: (name: string) => Promise<void>;
   updateGuestProfile: (updater: (current: PlayerProfile) => PlayerProfile) => void;
@@ -289,6 +292,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await applyUser(null);
   }, [applyUser]);
 
+  /* حذف الحساب نهائياً: مسح بيانات اللاعب من السيرفر الأول (التوكن لسه
+     صالح)، وبعدها حذف حساب Firebase Auth. لو الجلسة قديمة Firebase
+     بيرمي auth/requires-recent-login فبنفتح نافذة إعادة المصادقة
+     (فيسبوك/جوجل) ونكمل الحذف تلقائياً. */
+  const deleteAccount = useCallback(async () => {
+    if (!user) throw new Error('سجّل الدخول الأول');
+
+    if (user.provider === 'guest') {
+      clearGuestProfile();
+      writeGuestSession(null);
+      await applyUser(null);
+      return;
+    }
+
+    const auth = firebaseAuth;
+    if (!firebaseReady || !auth) throw new Error('الحسابات السحابية محتاجة إعداد Firebase الأول');
+
+    const response = await fetch(`${SERVER_URL}/api/profile`, {
+      method: 'DELETE',
+      headers: await authHeaders(),
+    });
+    if (!response.ok && response.status !== 404) {
+      throw new Error('مقدرناش نمسح بياناتك من السيرفر — جرب تاني');
+    }
+
+    const fbUser = auth.currentUser;
+    if (fbUser) {
+      try {
+        await deleteUser(fbUser);
+      } catch (err) {
+        if ((err as { code?: string })?.code !== 'auth/requires-recent-login') {
+          throw new Error('حذف الحساب فشل — جرب تاني');
+        }
+        const provider = user.provider === 'facebook' ? facebookProvider : googleProvider;
+        if (!provider) throw new Error('مقدم الدخول مش متاح — جرب تاني');
+        try {
+          await reauthenticateWithPopup(fbUser, provider);
+          await deleteUser(fbUser);
+        } catch (reauthErr) {
+          const code = (reauthErr as { code?: string })?.code ?? '';
+          const map: Record<string, string> = {
+            'auth/popup-blocked': 'المتصفح حجب نافذة تأكيد الهوية — اسمح بالنوافذ المنبثقة وجرب تاني',
+            'auth/popup-closed-by-user': 'قفلت نافذة تأكيد الهوية قبل ما تخلص',
+            'auth/cancelled-popup-request': 'في طلب تاني شغال — استنى لحظة وجرب تاني',
+            'auth/network-request-failed': 'مشكلة نت أثناء تأكيد الهوية — جرب تاني',
+            'auth/too-many-requests': 'محاولات كتير — استنى شوية وجرب تاني',
+          };
+          throw new Error(map[code] ?? 'تأكيد الهوية فشل — جرب تاني');
+        }
+      }
+    }
+
+    writeGuestSession(null);
+    await applyUser(null);
+  }, [user, applyUser]);
+
   const refreshProfile = useCallback(async () => {
     if (!user) return;
     if (user.provider === 'guest') {
@@ -344,10 +403,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signInWithFacebook,
     continueAsGuest,
     signOut,
+    deleteAccount,
     refreshProfile,
     setPlayerName,
     updateGuestProfile,
-  }), [user, profile, loading, profileLoading, profileError, authError, signInWithGoogle, signInWithFacebook, continueAsGuest, signOut, refreshProfile, setPlayerName, updateGuestProfile]);
+  }), [user, profile, loading, profileLoading, profileError, authError, signInWithGoogle, signInWithFacebook, continueAsGuest, signOut, deleteAccount, refreshProfile, setPlayerName, updateGuestProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

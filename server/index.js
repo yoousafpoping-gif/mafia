@@ -36,7 +36,7 @@ app.use('/api', (req, res, next) => {
   if (origin && (allowAll || config.corsOrigins.includes(origin))) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Idempotency-Key');
   }
   if (req.method === 'OPTIONS') return res.sendStatus(204);
@@ -118,6 +118,20 @@ app.post('/api/profile/player-name', verifyFirebaseToken, (req, res) => {
     const profile = profileStore.setPlayerName(req.auth.uid, req.body?.playerName);
     if (!profile) return res.status(404).json({ error: 'PROFILE_NOT_FOUND' });
     return res.json({ profile });
+  } catch (error) {
+    return profileError(res, error);
+  }
+});
+
+/* حذف الحساب — الكلاينت بينادي ده قبل حذف حساب Firebase Auth لأن التوكن
+   بيتلغي بعد حذف الحساب من Auth. Idempotent عمداً: لو البروفايل مش
+   موجود (اتمسح في محاولة سابقة فشلت بعدها) بنرد نجاح مش 404. */
+app.delete('/api/profile', verifyFirebaseToken, (req, res) => {
+  try {
+    const existed = profileStore.remove(req.auth.uid);
+    pushService.removeSubscription(req.auth.uid);
+    logger.info(`profile deleted: uid=${req.auth.uid} existed=${existed}`);
+    return res.json({ deleted: true, existed });
   } catch (error) {
     return profileError(res, error);
   }

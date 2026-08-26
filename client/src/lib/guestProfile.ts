@@ -77,6 +77,16 @@ export function saveGuestProfile(profile: PlayerProfile) {
   }
 }
 
+/** حذف بيانات اللاعب الضيف من الجهاز نهائياً (حذف الحساب) */
+export function clearGuestProfile() {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(GUEST_PROFILE_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 function dayKey(date = new Date()) {
   return date.toISOString().slice(0, 10);
 }

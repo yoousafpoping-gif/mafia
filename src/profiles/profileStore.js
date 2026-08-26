@@ -229,6 +229,15 @@ class ProfileStore {
     return profile ? clone(profile) : null;
   }
 
+  /** حذف بروفايل اللاعب نهائياً (حذف الحساب) — بيرجع true لو كان موجود فعلاً واتمسح */
+  remove(uid) {
+    const cleanUid = cleanString(uid, 128);
+    if (!cleanUid) return false;
+    const deleted = this.profiles.delete(cleanUid);
+    if (deleted) this.#save();
+    return deleted;
+  }
+
   setPlayerName(uid, rawName) {
     const profile = this.profiles.get(cleanString(uid, 128));
     if (!profile) return null;

@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAudioSettings } from '@/context/AudioContext';
 import { GAME_LOGO, GAME_TITLE } from '@/lib/branding';
@@ -14,6 +15,7 @@ import { HomeTopBar } from './HomeTopBar';
 import { DailyTasksPanel } from './DailyTasksPanel';
 import { LoginRewardsModal } from './LoginRewardsModal';
 import {
+  AlertTriangle,
   Bot,
   Coins,
   Loader2,
@@ -22,6 +24,7 @@ import {
   Radar,
   Settings as SettingsIcon,
   SquarePlus,
+  Trash2,
   Volume2,
   VolumeX,
   X,
@@ -477,7 +480,26 @@ function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }
 
 function SettingsPanel({ onClose }: { onClose: () => void }) {
   const { isMuted, toggleMute } = useAudioSettings();
+  const { user, deleteAccount } = useAuth();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const muted = isMuted;
+  const provider = user?.provider ?? 'guest';
+
+  const confirmDeleteAccount = async () => {
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await deleteAccount();
+      setConfirmDelete(false);
+      onClose();
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'الحذف فشل — جرب تاني');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <motion.div
@@ -525,10 +547,132 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
               </span>
             </button>
 
+            {/* منطقة الخطر — حذف الحساب نهائياً */}
+            <div className="mt-4 border-t border-night-600/60 pt-3">
+              <p className="mb-2 font-mono text-[9px] font-bold tracking-[0.28em] text-blood-400/70 uppercase">
+                Danger Zone
+              </p>
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="flex min-h-[48px] w-full items-center gap-2.5 rounded-xl border border-blood-700/50 bg-blood-700/10 px-3.5 text-right transition hover:border-blood-500/70 hover:bg-blood-700/25"
+              >
+                <Trash2 className="h-4.5 w-4.5 shrink-0 text-blood-400" strokeWidth={1.5} />
+                <span className="text-sm font-bold text-blood-400">
+                  {provider === 'guest' ? 'حذف بياناتي من الجهاز' : 'حذف الحساب نهائياً'}
+                </span>
+              </button>
+            </div>
+
             <p className="mt-3 text-center text-[10px] italic text-slate-600">
               اللعبة كلها على جهازك والصوت بين اللاعبين لايف
             </p>
           </motion.div>
+      <DeleteAccountModal
+        open={confirmDelete}
+        busy={deleting}
+        error={deleteError}
+        provider={provider}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={() => void confirmDeleteAccount()}
+      />
     </motion.div>
+  );
+}
+
+/* ---------------- حذف الحساب — تأكيد نهائي قبل المسح ---------------- */
+
+function DeleteAccountModal({
+  open,
+  busy,
+  error,
+  provider,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  busy: boolean;
+  error: string;
+  provider: 'facebook' | 'google' | 'guest';
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const ready = window.setTimeout(() => setMounted(true), 0);
+    return () => window.clearTimeout(ready);
+  }, []);
+
+  if (!mounted || typeof document === 'undefined') return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={busy ? undefined : onClose}
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+        >
+          <motion.div
+            initial={{ scale: 0.92, y: 24 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+            onClick={(event) => event.stopPropagation()}
+            className="w-full max-w-sm rounded-2xl border-2 border-blood-600/60 bg-[#170d0c]/95 p-5 text-white shadow-[0_0_50px_rgba(0,0,0,0.9)]"
+          >
+            <div className="mb-3 flex items-center gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-blood-500/40 bg-blood-700/20">
+                <AlertTriangle className="h-5 w-5 text-blood-400" strokeWidth={1.5} />
+              </span>
+              <h3 className="font-serif text-lg font-black text-blood-400 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
+                {provider === 'guest' ? 'حذف بياناتك من الجهاز؟' : 'حذف الحساب نهائياً؟'}
+              </h3>
+            </div>
+
+            <div className="rounded-xl border border-blood-700/40 bg-blood-700/10 p-3.5 text-sm leading-relaxed">
+              <p className="font-bold text-white">هذا الإجراء سيمسح كل تقدمك ولا يمكن التراجع عنه.</p>
+              <ul className="mt-2 list-inside list-disc space-y-0.5 text-slate-300">
+                <li>مستواك وخبرتك وإحصائياتك</li>
+                <li>العملات والجواهر وكل مشترياتك</li>
+                {provider !== 'guest' && <li>بياناتك من خوادم اللعبة وحسابك من نظام الدخول</li>}
+              </ul>
+              {provider !== 'guest' && (
+                <p className="mt-2 text-xs text-slate-400">
+                  ممكن تظهرلك نافذة تأكيد هوية من {provider === 'facebook' ? 'فيسبوك' : 'جوجل'} لإتمام الحذف.
+                </p>
+              )}
+            </div>
+
+            {error && (
+              <p className="mt-3 rounded-lg border border-blood-500/40 bg-blood-700/15 px-3 py-2 text-center text-xs font-bold text-blood-400">
+                {error}
+              </p>
+            )}
+
+            <div className="mt-4 flex gap-2.5">
+              <button
+                onClick={onClose}
+                disabled={busy}
+                className="min-h-[46px] flex-1 rounded-xl border border-night-600 bg-night-900/70 text-sm font-bold text-slate-300 transition hover:text-white disabled:opacity-40"
+              >
+                لا، رجعت في كلامي
+              </button>
+              <button
+                onClick={onConfirm}
+                disabled={busy}
+                className="flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-xl border border-blood-500/60 bg-gradient-to-b from-blood-600 to-blood-700 text-sm font-black text-white shadow-[0_0_22px_rgba(220,38,38,0.35)] transition hover:shadow-[0_0_28px_rgba(220,38,38,0.55)] disabled:opacity-60"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                {busy ? 'جاري الحذف…' : 'أيوه، امسح كل حاجة'}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
   );
 }
