@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#05070f"/>
+      <stop offset=".55" stop-color="#0b1226"/>
+      <stop offset="1" stop-color="#1a2240"/>
+    </linearGradient>
+    <radialGradient id="moonG" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#fdf6d8" stop-opacity=".95"/>
+      <stop offset=".35" stop-color="#e8ddb0" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#e8ddb0" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fog" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a3358" stop-opacity="0"/>
+      <stop offset="1" stop-color="#39406b" stop-opacity=".55"/>
+    </linearGradient>
+  </defs>
+  <!-- ليل المدينة: سماء نوار وقمر ضبابي وأبراج بنوافذ مضيئة -->
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <circle cx="1440" cy="240" r="150" fill="url(#moonG)"/>
+  <circle cx="1440" cy="240" r="64" fill="#f4eecb" opacity=".9"/>
+  <circle cx="1462" cy="222" r="10" fill="#d9d2a8" opacity=".5"/>
+  <circle cx="1420" cy="258" r="7" fill="#d9d2a8" opacity=".4"/>
+  <!-- نجوم -->
+  <g fill="#cdd5f0">
+    <circle cx="160" cy="90" r="2"/><circle cx="380" cy="150" r="1.5"/><circle cx="600" cy="70" r="2"/>
+    <circle cx="820" cy="180" r="1.5"/><circle cx="1060" cy="90" r="2"/><circle cx="1240" cy="140" r="1.5"/>
+    <circle cx="1660" cy="90" r="2"/><circle cx="1810" cy="200" r="1.5"/><circle cx="300" cy="260" r="1.5"/>
+  </g>
+  <!-- صف الأبراج الخلفي -->
+  <g fill="#0a0e1e">
+    <rect x="0" y="520" width="220" height="560"/>
+    <rect x="240" y="460" width="180" height="620"/>
+    <rect x="450" y="560" width="260" height="520"/>
+    <rect x="740" y="480" width="200" height="600"/>
+    <rect x="970" y="580" width="300" height="500"/>
+    <rect x="1300" y="500" width="220" height="580"/>
+    <rect x="1550" y="540" width="370" height="540"/>
+  </g>
+  <!-- صف الأبراج الأمامي الأغمق -->
+  <g fill="#05070f">
+    <rect x="60" y="640" width="240" height="440"/>
+    <rect x="360" y="700" width="200" height="380"/>
+    <rect x="620" y="660" width="280" height="420"/>
+    <rect x="950" y="720" width="240" height="360"/>
+    <rect x="1250" y="680" width="200" height="400"/>
+    <rect x="1500" y="740" width="420" height="340"/>
+  </g>
+  <!-- نوافذ مضيئة -->
+  <g fill="#e9c46a" opacity=".85">
+    <rect x="90" y="680" width="14" height="20"/><rect x="130" y="680" width="14" height="20"/><rect x="190" y="720" width="14" height="20"/><rect x="240" y="680" width="14" height="20"/>
+    <rect x="400" y="740" width="14" height="20"/><rect x="460" y="780" width="14" height="20"/><rect x="510" y="740" width="14" height="20"/>
+    <rect x="660" y="700" width="14" height="20"/><rect x="710" y="700" width="14" height="20"/><rect x="770" y="740" width="14" height="20"/><rect x="840" y="700" width="14" height="20"/>
+    <rect x="990" y="760" width="14" height="20"/><rect x="1050" y="800" width="14" height="20"/><rect x="1120" y="760" width="14" height="20"/>
+    <rect x="1290" y="720" width="14" height="20"/><rect x="1340" y="760" width="14" height="20"/><rect x="1400" y="720" width="14" height="20"/>
+    <rect x="1550" y="780" width="14" height="20"/><rect x="1620" y="820" width="14" height="20"/><rect x="1700" y="780" width="14" height="20"/><rect x="1780" y="820" width="14" height="20"/>
+  </g>
+  <g fill="#f2e3b3" opacity=".5">
+    <rect x="260" y="500" width="12" height="18"/><rect x="300" y="540" width="12" height="18"/><rect x="790" y="520" width="12" height="18"/><rect x="1360" y="540" width="12" height="18"/><rect x="1020" y="620" width="12" height="18"/>
+  </g>
+  <!-- ضباب سفلي -->
+  <rect y="860" width="1920" height="220" fill="url(#fog)"/>
+  <rect width="1920" height="1080" fill="#05060a" opacity=".25"/>
+</svg>

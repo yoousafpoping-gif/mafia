@@ -6,6 +6,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // فهرس الأوض العامة للبحث السريع — بيانات حضور مؤقتة فقط.
+    match /publicRooms/{roomId} {
+      allow read, write: if true;
+    }
+
     // إعدادات مشتركة بتتقرأ وقت التشغيل (بيانات TURN مثلًا) —
     // القراءة للجميع، والكتابة متاحة عشان تحديثها بسكريبت من غير إعادة نشر
     match /config/{docId} {

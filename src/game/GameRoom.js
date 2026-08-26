@@ -17,8 +17,21 @@ import { resolveNightActions } from './logic/nightResolution.js';
 import { resolveTally, tallyVotes, voteWeightOf } from './logic/voteResolution.js';
 import { pushService } from '../push/pushService.js';
 
-/** إيموجي الريأكشنز المسموح بيها (whitelist) */
-const REACTION_IDS = Object.freeze(['evil_laugh', 'applause', 'gasp', 'shush', 'target']);
+/** إيموجي الريأكشنز المسموح بيها (whitelist) — الخمسة الأولى مجانية والباقي من المتجر */
+const REACTION_IDS = Object.freeze([
+  'evil_laugh', 'applause', 'gasp', 'shush', 'target',
+  'fire', 'skull', 'money', 'clap_gold',
+]);
+
+/** كوزمتكس اللاعب المجهّزة — بتوصل مع الانضمام وبنثق فيها زي الاسم (عرض فقط) */
+function sanitizeCosmetics(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = (value) => (typeof value === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(value) ? value : null);
+  const cardFrame = id(raw.cardFrame);
+  const title = id(raw.title);
+  if (!cardFrame && !title) return null;
+  return { cardFrame: cardFrame ?? 'frame-classic', title };
+}
 
 const DAY_PHASES = new Set([PHASES.DAY_DISCUSSION, PHASES.DAY_VOTING, PHASES.DEFENSE_STAGE]);
 const CHAT_PHASES = new Set([
@@ -30,6 +43,10 @@ const CHAT_PHASES = new Set([
   PHASES.GAME_OVER,
 ]);
 const MAYOR_PHASES = new Set([PHASES.DAY_DISCUSSION, PHASES.DAY_VOTING, PHASES.DEFENSE_STAGE]);
+
+/* البوت "بشري": بيفكر 3-7 ثواني قبل أي فعل أو تصويت */
+const BOT_THINK_MIN_MS = 3000;
+const BOT_THINK_MAX_MS = 7000;
 
 /* ============================================================
    Smart Bot Chat — Heuristic NLP dictionary. Static, randomized,
@@ -201,13 +218,13 @@ export class GameRoom {
     this.lastNightDeaths = [];
     this.pendingNightReport = null;
 
-    const hostPlayer = this._createPlayer(host.name, host.socketId);
+    const hostPlayer = this._createPlayer(host.name, host.socketId, sanitizeCosmetics(host.cosmetics));
     hostPlayer.isHost = true;
     this.players.set(hostPlayer.id, hostPlayer);
     this.hostId = hostPlayer.id;
   }
 
-  addPlayer({ name, socketId }) {
+  addPlayer({ name, socketId, cosmetics }) {
     assert(
       this.phase === PHASES.LOBBY,
       ErrorCodes.GAME_IN_PROGRESS,
@@ -225,7 +242,7 @@ export class GameRoom {
     );
     assert(!nameTaken, ErrorCodes.NAME_TAKEN, `"${cleanName}" is already seated in this room`);
 
-    const player = this._createPlayer(cleanName, socketId);
+    const player = this._createPlayer(cleanName, socketId, sanitizeCosmetics(cosmetics));
     // لو الأوضة فضلت من غير هوست (الكل اتقطع ورجع) — أول داخل جديد ياخد الأوضة
     if (![...this.players.values()].some((p) => p.isHost)) {
       player.isHost = true;
@@ -237,7 +254,7 @@ export class GameRoom {
     return player;
   }
 
-  reattach({ token, socketId }) {
+  reattach({ token, socketId, cosmetics }) {
     assert(
       typeof token === 'string' && token.length > 0,
       ErrorCodes.VALIDATION_ERROR,
@@ -248,6 +265,9 @@ export class GameRoom {
 
     player.socketId = socketId;
     player.isConnected = true;
+    // الكوزمتكس بتنعش عند الرجوع — اللاعب ممكن يكون جهّز حاجة جديدة
+    const freshCosmetics = sanitizeCosmetics(cosmetics);
+    if (freshCosmetics) player.cosmetics = freshCosmetics;
     const hostAlive = [...this.players.values()].some((p) => p.isHost);
     if (!hostAlive) {
       // رجوع لأوضة فضلت من غير هوست — الراجع بياخدها
@@ -612,7 +632,7 @@ export class GameRoom {
     );
 
     const message = {
-      from: { id: sender.id, name: sender.name },
+      from: { id: sender.id, name: sender.name, cosmetics: sender.cosmetics ?? null },
       text,
       at: Date.now(),
     };
@@ -693,6 +713,7 @@ export class GameRoom {
         hasRevealed: player.hasRevealed,
         voteWeight: voteWeightOf(player),
         sid: player.socketId ?? null,
+        cosmetics: player.cosmetics ?? null,
       })),
     };
   }
@@ -706,6 +727,7 @@ export class GameRoom {
         id: player.id,
         name: player.name,
         isHost: player.isHost,
+        cosmetics: player.cosmetics ?? null,
         role: player.role,
         team: player.team,
         isAlive: player.isAlive,
@@ -790,7 +812,7 @@ export class GameRoom {
     return { channel, canSpeak, canHear, audible, phase: this.phase, round: this.round };
   }
 
-  _createPlayer(name, socketId) {
+  _createPlayer(name, socketId, cosmetics = null) {
     return {
       id: randomToken(),
       token: randomToken(),
@@ -798,6 +820,7 @@ export class GameRoom {
       name,
       isHost: false,
       isConnected: true,
+      cosmetics,
       role: null,
       team: null,
       isAlive: true,
@@ -927,9 +950,15 @@ export class GameRoom {
     this.botTimers.clear();
   }
 
+  /** بث حالة "البوت بيفكر" — الواجهة بتعرض مؤشر تفكير جنب اسمه لحد ما يتصرف */
+  _notifyBotThinking(playerId, kind) {
+    this.io.to(this.code).emit('bot:thinking', { playerId, kind, at: Date.now() });
+  }
+
   _scheduleNightBots() {
     for (const bot of this._bots()) {
       if (!this.expectedNightActors.has(bot.id)) continue;
+      this._notifyBotThinking(bot.id, 'night');
       this._scheduleBot(
         () => {
           if (this.phase !== PHASES.NIGHT || this.awaitingRevenge) return;
@@ -944,8 +973,8 @@ export class GameRoom {
             : null;
           this.submitNightAction(current.id, targetId);
         },
-        1500,
-        3000,
+        BOT_THINK_MIN_MS,
+        BOT_THINK_MAX_MS,
       );
     }
   }
@@ -953,6 +982,7 @@ export class GameRoom {
   _scheduleVoteBots() {
     for (const bot of this._bots()) {
       if (!bot.isAlive) continue;
+      this._notifyBotThinking(bot.id, 'vote');
       this._scheduleBot(
         () => {
           if (this.phase !== PHASES.DAY_VOTING || this.awaitingRevenge) return;
@@ -962,8 +992,8 @@ export class GameRoom {
           if (!candidates.length) return;
           this.castVote(current.id, candidates[Math.floor(Math.random() * candidates.length)].id);
         },
-        1500,
-        3500,
+        BOT_THINK_MIN_MS,
+        BOT_THINK_MAX_MS,
       );
     }
   }
@@ -1015,6 +1045,7 @@ export class GameRoom {
     );
 
     // Typing simulation — 2000ms..4500ms before the reply lands.
+    this._notifyBotThinking(speaker.id, 'chat');
     this._scheduleBot(() => {
       if (!BOT_REACTION_PHASES.has(this.phase)) return;
       const current = this.players.get(speaker.id);
@@ -1035,6 +1066,7 @@ export class GameRoom {
     const speakers = [...aliveBots].sort(() => Math.random() - 0.5).slice(0, Math.random() < 0.6 ? 1 : 2);
 
     speakers.forEach((bot, index) => {
+      this._notifyBotThinking(bot.id, 'chat');
       this._scheduleBot(
         () => {
           if (this.phase !== PHASES.DAY_DISCUSSION) return;
@@ -1415,6 +1447,7 @@ export class GameRoom {
     this.broadcastUpdate();
     this._sendRevengePrompt(deadPlayer);
     if (deadPlayer.isBot) {
+      this._notifyBotThinking(deadPlayer.id, 'night');
       this._scheduleBot(() => {
         if (!this.awaitingRevenge || this.awaitingRevenge.playerId !== deadPlayer.id) return;
         const options = this._alivePlayers().filter(
@@ -1424,7 +1457,7 @@ export class GameRoom {
           ? options[Math.floor(Math.random() * options.length)].id
           : null;
         this.submitRevenge(deadPlayer.id, targetId);
-      }, 2000, 4000);
+      }, BOT_THINK_MIN_MS, BOT_THINK_MAX_MS);
     }
     logger.info(`Room ${this.code}: Good Boy ${deadPlayer.name} fell (${source}) \u2014 revenge pending`);
   }
@@ -1481,6 +1514,7 @@ export class GameRoom {
         role: player.role,
         isAlive: player.isAlive,
         isHost: player.isHost,
+        cosmetics: player.cosmetics ?? null,
       })),
     };
     this.io.to(this.code).emit('game:over', this.result);

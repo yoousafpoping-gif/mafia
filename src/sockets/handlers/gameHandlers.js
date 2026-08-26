@@ -71,7 +71,7 @@ export function registerGameHandlers(io, socket, manager, run) {
   );
 
   socket.on('chat:message', (payload, ack) =>
-    withSeat(ack, (room, player) => room.postChat(player.id, payload?.text)),
+    withSeat(ack, (room, player) => room.postChat(player.id, payload?.text, payload?.channel)),
   );
 
   // ريأكشن إيموجي — بث لكل الأوضة فوق كارت المُرسل

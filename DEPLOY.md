@@ -157,16 +157,30 @@ NEXT_PUBLIC_PEER_SERVER = https://mafia-server-xxxx.onrender.com/peerjs
 
 ## 4) إعدادات اختيارية للإنتاج
 
-### تسجيل دخول جوجل حقيقي (Firebase)
-من غير المفاتيح دي اللعبة شغالة بالوضع المحلي. لتفعيل جوجل الحقيقي — Firebase Console
-→ Project → Authentication → Google → Enable، وبعدين ضيف في **Vercel**:
+### تسجيل دخول Google وFacebook (Firebase)
+وضع الضيف يعمل بدون Firebase ويحفظ الرصيد والمقتنيات والتقدم محليًا في `localStorage`. حسابات Google/Facebook وحدها تستخدم API المحمي بتوكن Firebase.
+
+1. Firebase Console → **Project settings → General → Your apps**: أنشئ Web App وخذ إعداد Web العام.
+2. انسخ `client/.env.local.example` إلى `.env.local` محليًا، أو أضف القيم التالية في Netlify/Vercel. لا تضع service-account keys أو Facebook App Secret في متغيرات `NEXT_PUBLIC_*`:
 
 ```
 NEXT_PUBLIC_FIREBASE_API_KEY=...
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=...
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=...
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=<project-id>.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=<project-id>
 NEXT_PUBLIC_FIREBASE_APP_ID=...
 ```
+
+3. Firebase Console → **Authentication → Sign-in method**:
+   - فعّل **Google** واختر بريد الدعم.
+   - فعّل **Facebook** وأدخل Facebook App ID وApp Secret داخل Firebase Console فقط.
+4. Facebook Developers → Facebook Login → Settings: أضف إلى **Valid OAuth Redirect URIs**:
+
+```
+https://<project-id>.firebaseapp.com/__/auth/handler
+```
+
+5. Firebase Console → **Authentication → Settings → Authorized domains**: أضف `localhost` للتطوير، ودومين Netlify/Vercel، وأي custom domain مستخدم. اكتب اسم النطاق فقط بدون `https://` أو مسار.
+6. بعد تغيير متغيرات الواجهة نفّذ Redeploy لأن قيم `NEXT_PUBLIC_*` تُدمج وقت البناء.
 
 ### ملاحظات تشغيلية
 - **Free tier على Render بينام بعد 15 دقيقة خمول** — أول زاير بيستنى ~30-50 ثانية

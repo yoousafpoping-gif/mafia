@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="royalBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c1038"/>
+      <stop offset=".55" stop-color="#2a1552"/>
+      <stop offset="1" stop-color="#160b2c"/>
+    </linearGradient>
+    <linearGradient id="drape" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d1d73"/>
+      <stop offset="1" stop-color="#241046"/>
+    </linearGradient>
+    <linearGradient id="goldPat" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8f6b14"/>
+      <stop offset=".5" stop-color="#f4d97b"/>
+      <stop offset="1" stop-color="#8f6b14"/>
+    </linearGradient>
+    <pattern id="fleur" width="160" height="160" patternUnits="userSpaceOnUse">
+      <g fill="#f4d97b" opacity=".14" transform="translate(80 80)">
+        <path d="M0 -26 C8 -16 10 -8 8 0 L-8 0 C-10 -8 -8 -16 0 -26 Z"/>
+        <path d="M-16 3 Q-21 -8 -13 -11 Q-8 -3 -8 3 Z"/>
+        <path d="M16 3 Q21 -8 13 -11 Q8 -3 8 3 Z"/>
+        <rect x="-8" y="3" width="16" height="5" rx="2"/>
+        <path d="M-5 10 L5 10 3 20 -3 20 Z"/>
+      </g>
+    </pattern>
+  </defs>
+  <!-- القاعة الملكية: ستائر بنفسج بنقشة زنابق ذهبية -->
+  <rect width="1920" height="1080" fill="url(#royalBg)"/>
+  <rect width="1920" height="1080" fill="url(#fleur)"/>
+  <!-- ستائر جنبين -->
+  <g>
+    <path d="M0 0 L420 0 C400 200 430 420 380 640 C360 760 390 900 340 1080 L0 1080 Z" fill="url(#drape)"/>
+    <path d="M1920 0 L1500 0 C1520 200 1490 420 1540 640 C1560 760 1530 900 1580 1080 L1920 1080 Z" fill="url(#drape)"/>
+    <!-- ثنيات الستارة -->
+    <g stroke="#150a2b" stroke-width="10" opacity=".5" fill="none">
+      <path d="M120 0 C100 300 140 700 100 1080"/>
+      <path d="M250 0 C240 300 270 700 230 1080"/>
+      <path d="M355 0 C350 300 370 700 340 1080"/>
+      <path d="M1800 0 C1820 300 1780 700 1820 1080"/>
+      <path d="M1670 0 C1680 300 1650 700 1690 1080"/>
+      <path d="M1565 0 C1570 300 1550 700 1580 1080"/>
+    </g>
+    <!-- حواف ذهبية للستائر -->
+    <path d="M420 0 C400 200 430 420 380 640 C360 760 390 900 340 1080" fill="none" stroke="url(#goldPat)" stroke-width="8"/>
+    <path d="M1500 0 C1520 200 1490 420 1540 640 C1560 760 1530 900 1580 1080" fill="none" stroke="url(#goldPat)" stroke-width="8"/>
+  </g>
+  <!-- تاج مركزي فوق -->
+  <g transform="translate(960 190)" fill="url(#goldPat)">
+    <path d="M-110 40 L-84 -12 -50 16 0 -34 50 16 84 -12 110 40 Z" stroke="#5c440e" stroke-width="4"/>
+    <rect x="-110" y="44" width="220" height="18" rx="8" stroke="#5c440e" stroke-width="4"/>
+    <circle cx="-84" cy="-18" r="8"/><circle cx="0" cy="-40" r="10"/><circle cx="84" cy="-18" r="8"/>
+  </g>
+  <!-- خط ذهبي سفلي -->
+  <rect y="1000" width="1920" height="6" fill="url(#goldPat)" opacity=".5"/>
+  <rect width="1920" height="1080" fill="#0c0618" opacity=".3"/>
+</svg>

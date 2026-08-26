@@ -5,19 +5,25 @@ import {
   ServerError,
   createHostNet,
   createPeerNet,
+  findPublicRoomNet,
+  restoreHostNet,
   getRoomNet,
   setRoomNet,
+  type JoinCosmetics,
 } from '@/lib/net';
 import { clearSeat, loadSeat, saveSeat } from '@/lib/seat';
 import { localNotify } from '@/lib/pushNotifications';
+import { useAuth } from '@/context/AuthContext';
 import type {
   ActionRequest,
+  ChatChannel,
   ChatMessage,
   GameState,
   MayorRevealPayload,
   NightResultPayload,
   RevengePrompt,
   Role,
+  RoomSettingsState,
   VoicePolicy,
   VoteResultPayload,
 } from '@/lib/types';
@@ -39,6 +45,7 @@ interface UseMafiaGameOptions {
 }
 
 export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
+  const { profile } = useAuth();
   const [state, setState] = useState<GameState | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>(() => {
     const existing = getRoomNet();
@@ -68,6 +75,19 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
   const reactionKey = useRef(0);
   const toastId = useRef(0);
   const seatRef = useRef(loadSeat(code ?? ''));
+  /** الكوزمتكس المجهّزة بتسافر مع الانضمام — ref عشان مش تكسر الـ callbacks */
+  const cosmeticsRef = useRef<JoinCosmetics | undefined>(undefined);
+  useEffect(() => {
+    cosmeticsRef.current = profile?.equipped
+      ? {
+          cardFrame: profile.equipped.cardFrame,
+          title: profile.equipped.title ?? null,
+          emote: profile.equipped.emote ?? null,
+          background: profile.equipped.background ?? null,
+          badges: profile.badges ?? [],
+        }
+      : undefined;
+  }, [profile?.equipped.cardFrame, profile?.equipped.title, profile?.equipped.emote, profile?.equipped.background, profile?.badges]);
 
   const pushToast = useCallback((message: string, errorCode?: string) => {
     toastId.current += 1;
@@ -85,6 +105,7 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
   const applyState = useCallback((next: GameState | null | undefined) => {
     if (!next) return;
     setState(next);
+    if (next.voicePolicy) setVoicePolicy(next.voicePolicy);
     setStatus({ connected: true, seated: true, joining: false });
   }, []);
 
@@ -111,8 +132,10 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
   useEffect(() => {
     if (!net) return;
 
-    const onRoomUpdate = (next: GameState) =>
+    const onRoomUpdate = (next: GameState) => {
       setState((prev) => ({ ...(prev ?? next), ...next, you: next.you ?? prev?.you }));
+      if (next.voicePolicy) setVoicePolicy(next.voicePolicy);
+    };
 
     const onPhaseChange = (payload: {
       phase: GameState['phase'];
@@ -189,10 +212,24 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
     };
 
     const onRoomClosed = () => {
-      pushToast('الأوضة اتقفلت خلاص.', 'ROOM_CLOSED');
+      pushToast('الاتصال بالأوضة اتقطع — بنحاول نرجعك تلقائيًا.', 'ROOM_CLOSED');
+      setStatus({ connected: false, seated: true, joining: true });
+      try {
+        net.destroy();
+      } catch {
+        /* already closed */
+      }
+      setRoomNet(null);
+      setNet(null);
+    };
+
+    const onRoomKicked = (payload: { code?: string; message?: string }) => {
       clearSeat(code ?? '');
+      pushToast(payload.message ?? 'تم طردك من الأوضة', payload.code ?? 'KICKED');
       setState(null);
       setStatus({ connected: false, seated: false, joining: false });
+      setRoomNet(null);
+      setNet(null);
     };
 
     const onErrorEvent = (payload: { code?: string; message?: string }) =>
@@ -213,6 +250,7 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
     net.on('reaction:show', onReaction);
     net.on('game:over', onGameOver);
     net.on('room:closed', onRoomClosed);
+    net.on('room:kicked', onRoomKicked);
     net.on('action:error', onErrorEvent);
 
     return () => {
@@ -226,10 +264,12 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
       net.off('game:vote_result', onVoteResult);
       net.off('game:mayor_revealed', onMayorRevealed);
       net.off('good_boy:prompt', onGoodBoyPrompt);
+      net.off('voice:policy', onVoicePolicy);
       net.off('chat:message', onChatMessage);
       net.off('reaction:show', onReaction);
       net.off('game:over', onGameOver);
       net.off('room:closed', onRoomClosed);
+      net.off('room:kicked', onRoomKicked);
       net.off('action:error', onErrorEvent);
     };
   }, [net, applyState, code, pushToast, sync]);
@@ -241,42 +281,68 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
   const rejoinTriedRef = useRef(false);
   useEffect(() => {
     if (!code || net) return;
-    if (rejoinTriedRef.current) {
-      setStatus((prev) => ({ ...prev, joining: false }));
-      return;
-    }
+    if (rejoinTriedRef.current) return;
     rejoinTriedRef.current = true;
 
     let cancelled = false;
-    const attempt = async () => {
+    let retryTimer: number | undefined;
+    const restoreDeadline = Date.now() + 30_000;
+    const attempt = async (attemptNo = 0) => {
       const seat = loadSeat(code);
-      if (seat?.token) {
-        seatRef.current = seat;
-        try {
-          const created = await createPeerNet(code, seat.name ?? '', seat.token);
-          if (cancelled) return;
-          setRoomNet(created);
-          setNet(created);
-          applyState(await created.sync());
+      if (!seat?.token) {
+        if (!cancelled) setStatus({ connected: false, seated: false, joining: false });
+        return;
+      }
+      seatRef.current = seat;
+      setStatus({ connected: false, seated: true, joining: true });
+      try {
+        const restoredHost = await restoreHostNet(code);
+        const created = restoredHost ?? await createPeerNet(code, seat.name ?? '', seat.token, cosmeticsRef.current);
+        if (cancelled) {
+          created.destroy();
           return;
-        } catch {
-          /* التوكن قديم — هيدخل يدوي */
+        }
+        setRoomNet(created);
+        setNet(created);
+        applyState(await created.sync());
+      } catch (error) {
+        const serverError = error instanceof ServerError ? error : null;
+        if (serverError?.code === 'KICKED') {
+          clearSeat(code);
+          if (!cancelled) setStatus({ connected: false, seated: false, joining: false });
+          return;
+        }
+        const canRetry = attemptNo < 5 && Date.now() < restoreDeadline;
+        if (!cancelled && canRetry) {
+          const delay = Math.min(1000 * 2 ** attemptNo, 10_000);
+          retryTimer = window.setTimeout(
+            () => void attempt(attemptNo + 1),
+            Math.min(delay, Math.max(0, restoreDeadline - Date.now())),
+          );
+        } else if (!cancelled) {
+          rejoinTriedRef.current = false;
+          setStatus({ connected: false, seated: true, joining: false });
+          pushToast(
+            serverError?.message ?? '┘à┘éÏ»Ï▒┘åÏºÏ┤ ┘åÏ│Ï¬Ï╣┘èÏ» Ïº┘äÏú┘êÏÂÏ® Ï¬┘ä┘éÏºÏª┘è┘ïÏº ÔÇö Ï¼Ï▒┘æÏ¿ Ï¬Ï»Ï«┘ä Ï¬Ïº┘å┘è Ïú┘ê ÏºÏ▒Ï¼Ï╣ ┘ä┘äÏ▒Ïª┘èÏ│┘èÏ®.',
+            serverError?.code ?? 'RESTORE_FAILED',
+          );
         }
       }
-      if (!cancelled) setStatus({ connected: false, seated: false, joining: false });
     };
 
     void attempt();
     return () => {
       cancelled = true;
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
     };
-  }, [code, net, applyState]);
+  }, [code, net, applyState, pushToast]);
 
   // الهوست بيتنقل من الرئيسية لصفحة الأوضة والاتصال معاه — لازم تعبئة الحالة
   // فورًا بالـ sync بدل شاشة "ادخل الأوضة" اللي بتهدم اتصال الهوست نفسه.
   useEffect(() => {
     if (!net) return;
-    void sync();
+    const timer = window.setTimeout(() => void sync(), 0);
+    return () => window.clearTimeout(timer);
   }, [net, sync]);
 
   const teardownCurrentNet = useCallback(() => {
@@ -294,10 +360,11 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
 
   // صاحب الأوضة بيبقى الهوست تلقائيًا — البير بتاعه ID بتاعه = كود الأوضة.
   const openHostedRoom = useCallback(
-    async (name: string): Promise<string> => {
+    async (name: string, settings?: Partial<RoomSettingsState>, isCustomRoom = false): Promise<string> => {
       teardownCurrentNet();
       try {
-        const created = await createHostNet(name);
+        // كل أوضة جديدة تظهر في البحث السريع، وتظل قابلة للدخول بالكود.
+        const created = await createHostNet(name, true, settings, cosmeticsRef.current, isCustomRoom);
         setNet(created);
         const fresh = await created.sync();
         const you = fresh.you as (typeof fresh)['you'] & { token?: string } | undefined;
@@ -320,8 +387,22 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
 
   const createRoom = openHostedRoom;
 
-  // مفيش سيرفر ماتش ميكر — البحث السريع بيفتحلك أوضة إنت الهوست فيها.
-  const quickMatch = openHostedRoom;
+  const quickMatch = useCallback(
+    async (name: string): Promise<string> => {
+      teardownCurrentNet();
+      try {
+        const created = await findPublicRoomNet(name, cosmeticsRef.current);
+        setNet(created);
+        applyState(await created.sync());
+        return created.code;
+      } catch (error) {
+        const serverError = error instanceof ServerError ? error : null;
+        pushToast(serverError?.message ?? 'مفيش أوض متاحة دلوقتي', serverError?.code);
+        throw error;
+      }
+    },
+    [applyState, pushToast, teardownCurrentNet],
+  );
 
   const joinRoom = useCallback(
     async (rawCode: string, name: string): Promise<string> => {
@@ -337,6 +418,7 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
           targetCode,
           cleanName,
           sameIdentity ? existing?.token : undefined,
+          cosmeticsRef.current,
         );
         setNet(created);
         applyState(await created.sync());
@@ -353,6 +435,16 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
     [applyState, pushToast, teardownCurrentNet],
   );
 
+  const kickPlayer = useCallback(async (playerId: string) => {
+    try {
+      await request('room:kick', { playerId });
+      await sync();
+    } catch (error) {
+      const serverError = error instanceof ServerError ? error : null;
+      pushToast(serverError?.message ?? 'مقدرناش نطرد اللاعب', serverError?.code);
+    }
+  }, [pushToast, request, sync]);
+
   const startGame = useCallback(async () => {
     try {
       await request('game:start');
@@ -360,6 +452,16 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
     } catch (error) {
       const serverError = error instanceof ServerError ? error : null;
       pushToast(serverError?.message ?? 'مقدرناش نبدأ اللعبة', serverError?.code);
+    }
+  }, [pushToast, request, sync]);
+
+  const updateSettings = useCallback(async (settings: GameState['settings']) => {
+    try {
+      await request('room:update_settings', settings);
+      await sync();
+    } catch (error) {
+      const serverError = error instanceof ServerError ? error : null;
+      pushToast(serverError?.message ?? 'مقدرناش نحفظ إعدادات الأوضة', serverError?.code);
     }
   }, [pushToast, request, sync]);
 
@@ -452,9 +554,9 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
   );
 
   const sendChat = useCallback(
-    async (text: string) => {
+    async (text: string, channel?: ChatChannel) => {
       try {
-        await request('chat:message', { text });
+        await request('chat:message', { text, channel });
       } catch (error) {
         const serverError = error instanceof ServerError ? error : null;
         pushToast(serverError?.message ?? 'الرسالة اترفضت', serverError?.code);
@@ -525,6 +627,8 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
     joinRoom,
     quickMatch,
     startGame,
+    updateSettings,
+    kickPlayer,
     voteRematch,
     requestPlayAgain,
     addBot,

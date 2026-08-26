@@ -47,12 +47,31 @@ export function buildRolePool(playerCount: number): string[] {
   return pool;
 }
 
-export function buildDeck(playerCount: number): string[] {
+const MAFIA_ROLES: string[] = [ROLES.MAFIA_BOSS, ROLES.MAFIOSO, ROLES.FRAMER, ROLES.SILENCER];
+
+export function buildRolePoolWithMafiaCount(playerCount: number, mafiaCount: number): string[] {
+  if (!Number.isInteger(mafiaCount) || mafiaCount < 1 || mafiaCount >= playerCount / 2) {
+    throw new RangeError('mafiaCount must be a positive minority of the room');
+  }
+
+  const base = buildRolePool(playerCount);
+  const townAndNeutral = base.filter((role) => !MAFIA_ROLES.includes(role));
+  const mafia = MAFIA_ROLES.slice(0, mafiaCount);
+  while (mafia.length < mafiaCount) mafia.push(ROLES.MAFIOSO);
+  const pool = [...mafia, ...townAndNeutral];
+  while (pool.length < playerCount) pool.push(ROLES.CITIZEN);
+  return pool.slice(0, playerCount);
+}
+
+export function buildDeck(playerCount: number, mafiaCount?: number): string[] {
   if (!Number.isInteger(playerCount)) {
     throw new TypeError(`playerCount must be an integer, received ${playerCount}`);
   }
   if (playerCount < LIMITS.MIN_PLAYERS || playerCount > LIMITS.MAX_PLAYERS) {
     throw new RangeError(`playerCount must be between ${LIMITS.MIN_PLAYERS} and ${LIMITS.MAX_PLAYERS}`);
   }
-  return secureShuffle(buildRolePool(playerCount));
+  const pool = mafiaCount === undefined
+    ? buildRolePool(playerCount)
+    : buildRolePoolWithMafiaCount(playerCount, mafiaCount);
+  return secureShuffle(pool);
 }

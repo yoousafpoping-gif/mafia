@@ -1,9 +1,10 @@
 import { GameRoom } from './engine/GameRoom';
-import { RoomHost, RoomClient, HOST_SOCKET } from './p2p';
+import { RoomHost, RoomClient, HOST_SOCKET, listPublicRoomCodes } from './p2p';
+import { HOST_SNAPSHOT_VERSION, clearHostSnapshot, loadHostSnapshot, saveHostSnapshot } from './hostSnapshot';
 import { sanitizeName } from './engine/validate';
 import { randomCode } from './engine/random';
 import { saveSeat } from './seat';
-import type { GameState, AppError, JoinSuccess } from './types';
+import type { GameState, AppError, JoinSuccess, PlayerCosmetics, RoomSettingsState } from './types';
 
 export class ServerError extends Error {
   code: string;
@@ -81,9 +82,9 @@ function registerHostHandlers(host: RoomHost, engine: GameRoom) {
   host.requestHandlers.set(
     'room:join',
     wrap((rawPayload: unknown, socketId: string) => {
-      const payload = (rawPayload ?? {}) as { token?: string | null; name?: string };
+      const payload = (rawPayload ?? {}) as { token?: string | null; name?: string; cosmetics?: unknown };
       if (payload.token) {
-        const player = engine.reattach({ token: payload.token, socketId });
+        const player = engine.reattach({ token: payload.token, socketId, cosmetics: payload.cosmetics });
         return {
           code: engine.code,
           playerId: player.id,
@@ -92,7 +93,7 @@ function registerHostHandlers(host: RoomHost, engine: GameRoom) {
           state: engine.privateState(player.id),
         } as JoinSuccess;
       }
-      const player = engine.addPlayer({ name: payload.name ?? '', socketId });
+      const player = engine.addPlayer({ name: payload.name ?? '', socketId, cosmetics: payload.cosmetics });
       return {
         code: engine.code,
         playerId: player.id,
@@ -107,6 +108,26 @@ function registerHostHandlers(host: RoomHost, engine: GameRoom) {
     const player = bySocket(socketId);
     engine.startGame(player.id);
     return { state: engine.privateState(player.id) };
+  }));
+
+  host.requestHandlers.set('room:update_settings', wrap((payload: unknown, socketId: string) => {
+    const player = bySocket(socketId);
+    engine.updateSettings(player.id, (payload ?? {}) as Parameters<GameRoom['updateSettings']>[1]);
+    return { state: engine.privateState(player.id) };
+  }));
+
+  host.requestHandlers.set('room:kick', wrap((payload: unknown, socketId: string) => {
+    const requester = bySocket(socketId);
+    const { playerId } = (payload ?? {}) as { playerId?: string };
+    const kicked = engine.kickPlayer(requester.id, playerId ?? '');
+    if (kicked.socketId) {
+      host.pushTo(kicked.socketId, 'room:kicked', {
+        code: 'KICKED',
+        message: 'صاحب الأوضة طردك من اللوبي',
+      });
+      host.disconnectPeer(kicked.socketId);
+    }
+    return { state: engine.privateState(requester.id) };
   }));
 
   host.requestHandlers.set('game:sync', wrap((_p: unknown, socketId: string) => {
@@ -163,8 +184,8 @@ function registerHostHandlers(host: RoomHost, engine: GameRoom) {
 
   host.requestHandlers.set('chat:message', wrap((payload: unknown, socketId: string) => {
     const player = bySocket(socketId);
-    const { text } = (payload ?? {}) as { text?: string };
-    return engine.postChat(player.id, text ?? '');
+    const { text, channel } = (payload ?? {}) as { text?: string; channel?: 'PUBLIC' | 'MAFIA' | 'DEAD' };
+    return engine.postChat(player.id, text ?? '', channel);
   }));
 
   host.requestHandlers.set('reaction:send', wrap((payload: unknown, socketId: string) => {
@@ -217,9 +238,47 @@ function registerHostHandlers(host: RoomHost, engine: GameRoom) {
     });
   host.requestHandlers.set('voice:signal', relay('voice:signal'));
   host.requestHandlers.set('voice:ice', relay('voice:ice'));
+  host.requestHandlers.set(
+    'voice:speaking',
+    wrap((payload: unknown, socketId: string) => {
+      const { data } = (payload ?? {}) as { data?: { speaking?: boolean } };
+      for (const id of host.voiceJoined) {
+        if (id === socketId) continue;
+        const eventPayload = { from: socketId, speaking: Boolean(data?.speaking) };
+        if (id === HOST_SOCKET) host.emitLocal('voice:speaking', eventPayload);
+        else host.pushTo(id, 'voice:speaking', eventPayload);
+      }
+      return { relayed: true };
+    }),
+  );
 }
 
-function makeHostNet(host: RoomHost, engine: GameRoom, code: string): RoomNet {
+function makeHostNet(
+  host: RoomHost,
+  engine: GameRoom,
+  code: string,
+  hostToken: string,
+  isPublic: boolean,
+): RoomNet {
+  const persist = () => saveHostSnapshot({
+    version: HOST_SNAPSHOT_VERSION,
+    code,
+    hostToken,
+    isPublic,
+    savedAt: Date.now(),
+    engine: engine.exportSnapshot(),
+  });
+  const interval = window.setInterval(persist, 2_000);
+  const persistOnHide = () => persist();
+  window.addEventListener('pagehide', persistOnHide);
+  persist();
+  const closeExplicitly = () => {
+    window.clearInterval(interval);
+    window.removeEventListener('pagehide', persistOnHide);
+    clearHostSnapshot(code);
+    engine.dispose();
+    host.destroy();
+  };
   return {
     isHost: true,
     code,
@@ -238,9 +297,21 @@ function makeHostNet(host: RoomHost, engine: GameRoom, code: string): RoomNet {
       const data = host.localRequest('game:sync', {}) as { state: GameState };
       return data.state;
     },
-    sendVoice: (event, to, data) => host.relayVoice(HOST_SOCKET, event, to, data),
-    leave: () => host.destroy(),
-    destroy: () => host.destroy(),
+    sendVoice: (event, to, data) => {
+      if (event === 'voice:speaking') {
+        for (const id of host.voiceJoined) {
+          if (id === HOST_SOCKET) continue;
+          host.pushTo(id, 'voice:speaking', {
+            from: HOST_SOCKET,
+            speaking: Boolean((data as { speaking?: boolean })?.speaking),
+          });
+        }
+        return;
+      }
+      host.relayVoice(HOST_SOCKET, event, to, data);
+    },
+    leave: closeExplicitly,
+    destroy: closeExplicitly,
   };
 }
 
@@ -269,12 +340,22 @@ function makePeerNet(client: RoomClient, code: string): RoomNet {
   };
 }
 
+/** كوزمتكس اللاعب المجهّزة اللي بتسافر مع الانضمام — عرض فقط */
+export type JoinCosmetics = PlayerCosmetics;
+
 /** Creator automatically becomes the host — its Peer id is the room code. */
-export async function createHostNet(name: string): Promise<RoomNet> {
+export async function createHostNet(
+  name: string,
+  isPublic = false,
+  settings?: Partial<RoomSettingsState>,
+  cosmetics?: JoinCosmetics,
+  isCustomRoom = false,
+): Promise<RoomNet> {
   let lastError: unknown = null;
   for (let attempt = 0; attempt < 6; attempt += 1) {
     const code = randomCode(6);
-    const host = new RoomHost(code);
+    const hostToken = crypto.randomUUID();
+    const host = new RoomHost(code, isPublic, hostToken);
     try {
       await withTimeout(host.ready, 12_000, 'HOST_TIMEOUT', 'تعذر تشغيل الأوضة — جرّب تاني');
     } catch (err) {
@@ -289,9 +370,14 @@ export async function createHostNet(name: string): Promise<RoomNet> {
       if (shaped?.type === 'unavailable-id') continue;
       throw new ServerError(errShape(err));
     }
-    const engine = new GameRoom(host, code, { name: sanitizeName(name), socketId: HOST_SOCKET });
+    const engine = new GameRoom(host, code, { name: sanitizeName(name), socketId: HOST_SOCKET, cosmetics }, isCustomRoom);
+    if (settings) {
+      const hostPlayer = [...engine.players.values()].find((player) => player.isHost);
+      if (!hostPlayer) throw new ServerError({ code: 'HOST_ERROR', message: 'تعذر تجهيز صاحب الأوضة' });
+      engine.updateSettings(hostPlayer.id, settings);
+    }
     registerHostHandlers(host, engine);
-    const net = makeHostNet(host, engine, code);
+    const net = makeHostNet(host, engine, code, hostToken, isPublic);
     setRoomNet(net);
     return net;
   }
@@ -301,8 +387,38 @@ export async function createHostNet(name: string): Promise<RoomNet> {
   });
 }
 
+export async function restoreHostNet(rawCode: string): Promise<RoomNet | null> {
+  const code = rawCode.trim().toUpperCase();
+  const saved = loadHostSnapshot(code);
+  if (!saved) return null;
+  const host = new RoomHost(code, saved.isPublic, saved.hostToken);
+  try {
+    await withTimeout(host.ready, 12_000, 'HOST_RESTORE_TIMEOUT', 'تعذر استعادة الأوضة');
+    const engine = GameRoom.restore(host, saved.engine);
+    registerHostHandlers(host, engine);
+    const net = makeHostNet(host, engine, code, saved.hostToken, saved.isPublic);
+    setRoomNet(net);
+    return net;
+  } catch (error) {
+    host.destroy();
+    throw new ServerError(errShape(error));
+  }
+}
+
+export async function findPublicRoomNet(name: string, cosmetics?: JoinCosmetics): Promise<RoomNet> {
+  const codes = await listPublicRoomCodes();
+  for (const code of codes) {
+    try {
+      return await createPeerNet(code, name, undefined, cosmetics);
+    } catch {
+      // Stale/full room: try the next advertised room.
+    }
+  }
+  throw new ServerError({ code: 'NO_PUBLIC_ROOMS', message: 'مفيش أوض متاحة دلوقتي' });
+}
+
 /** Other players join the host's room using its Room Code. */
-export async function createPeerNet(rawCode: string, name: string, token?: string): Promise<RoomNet> {
+export async function createPeerNet(rawCode: string, name: string, token?: string, cosmetics?: JoinCosmetics): Promise<RoomNet> {
   const code = rawCode.trim().toUpperCase();
   const client = new RoomClient(code);
   try {
@@ -325,7 +441,7 @@ export async function createPeerNet(rawCode: string, name: string, token?: strin
   let res: JoinSuccess;
   try {
     res = (await withTimeout(
-      client.sendRequest('room:join', { code, name: sanitizeName(name), token: token ?? null }),
+      client.sendRequest('room:join', { code, name: sanitizeName(name), token: token ?? null, cosmetics: cosmetics ?? null }),
       12_000,
       'JOIN_TIMEOUT',
       'مفيش رد من الأوضة — الكود غالبًا غلط',

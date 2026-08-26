@@ -6,11 +6,13 @@ import { motion } from 'framer-motion';
 import { initGlobalSfx } from '@/lib/sfx';
 import { useMafiaGame } from '@/hooks/useMafiaGame';
 import { LandingScreen } from '@/components/LandingScreen';
+import type { RoomSettingsState } from '@/lib/types';
+import { useAuth } from '@/context/AuthContext';
 
 export default function HomePage() {
   const router = useRouter();
   const { createRoom, joinRoom, quickMatch, status, toasts, dismissToast } = useMafiaGame();
-  const [name, setName] = useState('');
+  const { profile } = useAuth();
   const [codeInput, setCodeInput] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -18,14 +20,25 @@ export default function HomePage() {
     initGlobalSfx();
   }, []);
 
-  const trimmedName = name.trim();
-  const canAct = trimmedName.length >= 2 && !busy;
+  const playerName = profile?.playerName ?? '';
+  const canAct = playerName.length >= 2 && !busy;
 
   const handleCreate = async () => {
     if (!canAct) return;
     setBusy(true);
     try {
-      const code = await createRoom(trimmedName);
+      const code = await createRoom(playerName);
+      router.push(`/game?code=${code}`);
+    } catch {
+      setBusy(false);
+    }
+  };
+
+  const handleCustomCreate = async (settings: RoomSettingsState) => {
+    if (!canAct) return;
+    setBusy(true);
+    try {
+      const code = await createRoom(playerName, settings, true);
       router.push(`/game?code=${code}`);
     } catch {
       setBusy(false);
@@ -36,7 +49,7 @@ export default function HomePage() {
     if (!canAct || codeInput.trim().length < 4) return;
     setBusy(true);
     try {
-      const code = await joinRoom(codeInput, trimmedName);
+      const code = await joinRoom(codeInput, playerName);
       router.push(`/game?code=${code}`);
     } catch {
       setBusy(false);
@@ -48,7 +61,7 @@ export default function HomePage() {
     setBusy(true);
     try {
       sessionStorage.setItem('mafia-practice', '5');
-      const code = await createRoom(trimmedName);
+      const code = await createRoom(playerName);
       router.push(`/game?code=${code}`);
     } catch {
       setBusy(false);
@@ -60,7 +73,7 @@ export default function HomePage() {
     if (!canAct) return;
     setBusy(true);
     try {
-      const code = await quickMatch(trimmedName);
+      const code = await quickMatch(playerName);
       router.push(`/game?code=${code}`);
     } catch {
       setBusy(false);
@@ -70,13 +83,12 @@ export default function HomePage() {
   return (
     <>
       <LandingScreen
-        name={name}
-        onNameChange={setName}
         codeInput={codeInput}
         onCodeChange={setCodeInput}
         busy={busy}
         connected={status.connected}
         onCreate={handleCreate}
+        onCreateCustom={handleCustomCreate}
         onJoin={handleJoin}
         onPractice={handlePractice}
         onQuickMatch={handleQuickMatch}

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bag" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c9a06a"/>
+      <stop offset=".55" stop-color="#a87c48"/>
+      <stop offset="1" stop-color="#7a5628"/>
+    </linearGradient>
+    <radialGradient id="coin" cx=".35" cy=".3" r=".9">
+      <stop offset="0" stop-color="#ffe98f"/>
+      <stop offset=".6" stop-color="#e9c46a"/>
+      <stop offset="1" stop-color="#b08a2e"/>
+    </radialGradient>
+  </defs>
+  <!-- كيس الفلوس -->
+  <path d="M64 22 C40 22 26 42 26 68 C26 92 42 106 64 106 C86 106 102 92 102 68 C102 42 88 22 64 22 Z" fill="url(#bag)" stroke="#5c3f18" stroke-width="3"/>
+  <!-- ربطة الكيس -->
+  <path d="M50 24 L46 10 L64 18 L82 10 L78 24" fill="#8a6a38" stroke="#5c3f18" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M46 26 Q64 34 82 26" fill="none" stroke="#5c3f18" stroke-width="3"/>
+  <!-- علامة الدولار -->
+  <text x="64" y="86" font-family="Georgia, serif" font-size="52" font-weight="bold" fill="#2f5c1d" text-anchor="middle" stroke="#1d3d10" stroke-width="2">$</text>
+  <!-- عملة متطايرة -->
+  <circle cx="100" cy="34" r="14" fill="url(#coin)" stroke="#8f6b14" stroke-width="2.5"/>
+  <text x="100" y="41" font-family="Georgia, serif" font-size="19" font-weight="bold" fill="#8f6b14" text-anchor="middle">$</text>
+  <!-- لمعة -->
+  <path d="M42 44 Q48 36 56 38" fill="none" stroke="#f0e0c0" stroke-width="4" stroke-linecap="round" opacity=".6"/>
+</svg>

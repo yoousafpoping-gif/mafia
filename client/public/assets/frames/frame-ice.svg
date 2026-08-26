@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 768">
+  <defs>
+    <linearGradient id="iceBlue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e0fbff"/>
+      <stop offset=".5" stop-color="#7dd8f0"/>
+      <stop offset="1" stop-color="#2f9bc4"/>
+    </linearGradient>
+    <linearGradient id="icicle" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c9f2ff"/>
+      <stop offset="1" stop-color="#5cc3e6"/>
+    </linearGradient>
+    <filter id="frost" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- إطار الجليد: بلورات سماوية ونبلاخيت قطرات متجمدة -->
+  <rect x="16" y="16" width="480" height="736" rx="54" fill="none" stroke="url(#iceBlue)" stroke-width="30" filter="url(#frost)"/>
+  <rect x="42" y="42" width="428" height="684" rx="36" fill="none" stroke="#eafcff" stroke-width="3" opacity=".7"/>
+  <!-- نواسات جليد متدلية من الحد العلوي -->
+  <g fill="url(#icicle)">
+    <path d="M60 34 l10 0 -2 30 -3 14 -3 -14 -2 -30 z" opacity=".9"/>
+    <path d="M140 32 l14 0 -3 44 -4 22 -4 -22 -3 -44 z"/>
+    <path d="M228 34 l8 0 -2 22 -2 10 -2 -10 -2 -22 z" opacity=".85"/>
+    <path d="M330 32 l12 0 -2 36 -4 18 -4 -18 -2 -36 z"/>
+    <path d="M424 34 l10 0 -2 26 -3 12 -3 -12 -2 -26 z" opacity=".9"/>
+  </g>
+  <!-- ندفة ثلج في كل زاوية -->
+  <g stroke="#eafcff" stroke-width="4" stroke-linecap="round" filter="url(#frost)">
+    <g transform="translate(52 52)">
+      <path d="M0 -14 V14 M-14 0 H14 M-10 -10 L10 10 M-10 10 L10 -10"/>
+      <circle r="3.5" fill="#eafcff" stroke="none"/>
+    </g>
+    <g transform="translate(460 52)">
+      <path d="M0 -14 V14 M-14 0 H14 M-10 -10 L10 10 M-10 10 L10 -10"/>
+      <circle r="3.5" fill="#eafcff" stroke="none"/>
+    </g>
+    <g transform="translate(52 716)">
+      <path d="M0 -14 V14 M-14 0 H14 M-10 -10 L10 10 M-10 10 L10 -10"/>
+      <circle r="3.5" fill="#eafcff" stroke="none"/>
+    </g>
+    <g transform="translate(460 716)">
+      <path d="M0 -14 V14 M-14 0 H14 M-10 -10 L10 10 M-10 10 L10 -10"/>
+      <circle r="3.5" fill="#eafcff" stroke="none"/>
+    </g>
+  </g>
+</svg>

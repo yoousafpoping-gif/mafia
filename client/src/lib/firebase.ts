@@ -7,13 +7,18 @@
  * محلي (بروفايل على السيرفر من غير أكونت جوجل).
  */
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, type Auth } from 'firebase/auth';
+import { FacebookAuthProvider, getAuth, GoogleAuthProvider, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
+
+const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+const configuredAuthDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN?.trim();
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  // Prefer the domain shipped with this exact Firebase config. Only derive the
+  // standard project domain when the environment variable is genuinely absent.
+  authDomain: configuredAuthDomain || (projectId ? `${projectId}.firebaseapp.com` : undefined),
+  projectId,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
@@ -34,6 +39,10 @@ if (firebaseReady) {
 
 export const googleProvider = firebaseReady
   ? new GoogleAuthProvider()
+  : null;
+
+export const facebookProvider = firebaseReady
+  ? new FacebookAuthProvider()
   : null;
 
 export { app as firebaseApp, auth as firebaseAuth, db as firebaseDb };

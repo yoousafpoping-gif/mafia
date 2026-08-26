@@ -6,211 +6,348 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import {
+  browserSessionPersistence,
   getRedirectResult,
   onAuthStateChanged,
+  setPersistence,
   signInWithPopup,
-  signInWithRedirect,
   signOut as firebaseSignOut,
+  type AuthProvider as FirebaseProvider,
+  type User as FirebaseUser,
 } from 'firebase/auth';
-import { firebaseAuth, firebaseReady, googleProvider } from '@/lib/firebase';
+import {
+  facebookProvider,
+  firebaseAuth,
+  firebaseReady,
+  googleProvider,
+} from '@/lib/firebase';
 import { SERVER_URL } from '@/lib/config';
 import { enablePushForUser } from '@/lib/pushNotifications';
+import { loadGuestProfile, saveGuestProfile } from '@/lib/guestProfile';
+import type { DailyQuestDefinition } from '@/lib/progressionConfig';
 
-/** هوية الجلسة — من جوجل أو من الوضع المحلي الاحتياطي */
 export interface AuthUser {
   uid: string;
   displayName: string;
   photoURL: string;
-  provider: 'google' | 'local';
+  provider: 'google' | 'facebook' | 'guest';
 }
 
-/** أرقام اللاعب المحفوظة على السيرفر */
 export interface PlayerProfile {
+  schemaVersion: 4;
+  playerName: string;
+  nameStatus: 'required' | 'set';
+  nameSetAt: string | null;
   coins: number;
+  gems: number;
   rank: string;
-  wins: number;
-  totalGames: number;
+  stats: { games: number; wins: number; losses: number; xp: number; rolePlays: Record<string, number> };
+  badges: string[];
+  inventory: string[];
+  equipped: { cardFrame: string; title: string | null; emote: string | null; background: string | null };
+  dailyGift?: { lastDay: string | null; streak: number };
+  loginCalendar?: { monthKey: string; claimedDays: number[] };
+  dailyQuests?: {
+    dayKey: string;
+    progress: Record<DailyQuestDefinition['metric'], number>;
+    claimed: string[];
+  };
+  claimedLevelRewards?: number[];
+  processedResults?: string[];
 }
 
 interface AuthState {
   user: AuthUser | null;
   profile: PlayerProfile | null;
   loading: boolean;
-  /** true لما firebase مفاتيحه موجودة — الدخول بيبقى جوجل حقيقي */
+  profileLoading: boolean;
+  profileError: Error | null;
+  authError: Error | null;
+  firebaseReady: boolean;
   googleReady: boolean;
-  signInWithGoogle: (displayNameFallback?: string) => Promise<void>;
+  isGuest: boolean;
+  signInWithGoogle: () => Promise<void>;
+  signInWithFacebook: () => Promise<void>;
+  continueAsGuest: () => Promise<void>;
   signOut: () => Promise<void>;
-  /** تحديث الأرقام من السيرفر (بعد تسجيل نتيجة مثلًا) */
   refreshProfile: () => Promise<void>;
+  setPlayerName: (name: string) => Promise<void>;
+  updateGuestProfile: (updater: (current: PlayerProfile) => PlayerProfile) => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
+const GUEST_SESSION_KEY = 'mafia-guest-session-v1';
 
-const LOCAL_SESSION_KEY = 'mafia-auth-session-v1';
-
-/** أخطاء firebase الشائعة برسايل عربي — بدل الصمت لما الحساب/النطاق مش مفعّل */
 function friendlyAuthError(err: unknown): Error {
   const code = (err as { code?: string })?.code ?? '';
   const map: Record<string, string> = {
-    'auth/operation-not-allowed':
-      'تسجيل الدخول بجوجل مقفول — فعّل Google من Authentication في Firebase Console',
-    'auth/unauthorized-domain': 'النطاق ده مش مضاف في إعدادات Authentication',
-    'auth/popup-blocked': 'المتصفح حجب النافذة المنبثقة — اسمح بالنوافذ المنبثقة للموقع',
-    'auth/popup-closed-by-user': 'قفلت نافذة جوجل قبل ما تخلص',
-    'auth/cancelled-popup-request': 'اتفتح طلب تسجيل تاني — استنى الأول يخلص',
-    'auth/network-request-failed': 'مشكلة نت في الوصول لجوجل — جرب تاني',
+    'auth/operation-not-allowed': 'طريقة الدخول دي مش مفعّلة في Firebase Console',
+    'auth/unauthorized-domain': 'النطاق ده مش مضاف في إعدادات Firebase Authentication',
+    'auth/popup-blocked': 'المتصفح حجب نافذة الدخول — اسمح بالنوافذ المنبثقة وجرب تاني',
+    'auth/popup-closed-by-user': 'قفلت نافذة الدخول قبل ما تخلص',
+    'auth/cancelled-popup-request': 'في طلب دخول تاني شغال — استنى لحظة',
+    'auth/network-request-failed': 'مشكلة نت في الوصول لخدمة الدخول — جرب تاني',
     'auth/too-many-requests': 'محاولات كتير — استنى شوية وجرب تاني',
+    'auth/account-exists-with-different-credential': 'الإيميل ده مربوط بطريقة دخول مختلفة',
   };
   return new Error(map[code] ?? 'تسجيل الدخول فشل — جرب تاني');
 }
 
-function readLocalSession(): AuthUser | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem(LOCAL_SESSION_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as AuthUser;
-    return parsed?.uid ? parsed : null;
-  } catch {
-    return null;
-  }
+function providerName(user: FirebaseUser): AuthUser['provider'] {
+  return user.providerData.some((entry) => entry.providerId === 'facebook.com') ? 'facebook' : 'google';
 }
 
-function writeLocalSession(user: AuthUser | null) {
+function fromFirebaseUser(user: FirebaseUser): AuthUser {
+  const provider = providerName(user);
+  return {
+    uid: user.uid,
+    displayName: user.displayName ?? (provider === 'facebook' ? 'لاعب فيسبوك' : 'لاعب جوجل'),
+    photoURL: user.photoURL ?? '',
+    provider,
+  };
+}
+
+function clearLegacyGuestSession() {
   if (typeof window === 'undefined') return;
   try {
-    if (user) window.localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(user));
-    else window.localStorage.removeItem(LOCAL_SESSION_KEY);
+    window.localStorage.removeItem(GUEST_SESSION_KEY);
   } catch {
     /* storage unavailable */
   }
 }
 
-/** upsert على سيرفر اللعبة — البروفايل الجديد بينزل بـ500 كوينز ورتبة مواطن */
+function readGuestSession(): AuthUser | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(GUEST_SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<AuthUser>;
+    if (parsed.provider !== 'guest' || typeof parsed.uid !== 'string') return null;
+    return {
+      uid: parsed.uid,
+      displayName: typeof parsed.displayName === 'string' ? parsed.displayName : 'ضيف الحارة',
+      photoURL: '',
+      provider: 'guest',
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeGuestSession(user: AuthUser | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (user?.provider === 'guest') window.sessionStorage.setItem(GUEST_SESSION_KEY, JSON.stringify(user));
+    else window.sessionStorage.removeItem(GUEST_SESSION_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+export async function authHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
+  const token = await firebaseAuth?.currentUser?.getIdToken();
+  if (!token) throw new Error('الحساب السحابي مطلوب للعملية دي');
+  return { ...extra, Authorization: `Bearer ${token}` };
+}
+
 async function syncProfile(user: AuthUser): Promise<PlayerProfile> {
   const res = await fetch(`${SERVER_URL}/api/profile`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      uid: user.uid,
-      displayName: user.displayName,
-      photoURL: user.photoURL,
-      provider: user.provider,
-    }),
+    headers: await authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ displayName: user.displayName, photoURL: user.photoURL }),
   });
   if (!res.ok) throw new Error('profile sync failed');
-  const data = (await res.json()) as { profile: PlayerProfile };
-  return data.profile;
+  return ((await res.json()) as { profile: PlayerProfile }).profile;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState<Error | null>(null);
+  const [authError, setAuthError] = useState<Error | null>(null);
+  const syncGeneration = useRef(0);
+  const mounted = useRef(true);
 
-  const applyUser = useCallback(async (next: AuthUser | null) => {
-    setUser(next);
-    if (!next) {
-      setProfile(null);
-      return;
-    }
-    // طلب إذن الإشعارات + اشتراك الدفع بعد الدخول (idempotent — مفيش مطالبات متكررة)
-    void enablePushForUser(next.uid, next.displayName);
-    try {
-      setProfile(await syncProfile(next));
-    } catch {
-      /* السيرفر مش متصل — الجلسة شغالة، والأرقام تتجدد أول ما يرجع */
-    }
+  useEffect(() => () => {
+    mounted.current = false;
+    syncGeneration.current += 1;
   }, []);
 
-  /* استرجاع الجلسة — firebase بيفضل مسجّل لوحده، والوضع المحلي من localStorage.
-     الاسترجاع المحلي مؤجّل بميكرو-تايمر — setState مباشر جوه الإفكت بيعمل cascading renders. */
+  const loadProfile = useCallback(async (next: AuthUser, generation: number) => {
+    if (next.provider === 'guest') {
+      setProfile(loadGuestProfile());
+      setProfileLoading(false);
+      return;
+    }
+    setProfileLoading(true);
+    setProfileError(null);
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const fresh = await syncProfile(next);
+        if (!mounted.current || generation !== syncGeneration.current) return;
+        setProfile(fresh);
+        setProfileLoading(false);
+        return;
+      } catch (err) {
+        lastError = err;
+        if (attempt < 2) await new Promise((resolve) => window.setTimeout(resolve, 400 * 2 ** attempt));
+      }
+    }
+    if (!mounted.current || generation !== syncGeneration.current) return;
+    const safeError = new Error('تعذر تحميل بيانات الحساب — حاول مرة أخرى');
+    setProfileError(safeError);
+    setProfileLoading(false);
+    throw lastError instanceof Error ? lastError : safeError;
+  }, []);
+
+  const applyUser = useCallback(async (next: AuthUser | null) => {
+    const generation = ++syncGeneration.current;
+    setUser(next);
+    setProfile(null);
+    setProfileError(null);
+    if (!next) {
+      setProfileLoading(false);
+      return;
+    }
+    if (next.provider !== 'guest') void enablePushForUser(next.uid, next.displayName);
+    await loadProfile(next, generation);
+  }, [loadProfile]);
+
   useEffect(() => {
+    clearLegacyGuestSession();
+
     if (firebaseReady && firebaseAuth) {
-      // إتمام رجوع الـ redirect من الموبايل — onAuthStateChanged بيشيل الجلسة،
-      // النداء هنا بيمسح النتيجة المعلقة وبيرمي خطأها لو حصل
-      getRedirectResult(firebaseAuth).catch(() => undefined);
-      const unsub = onAuthStateChanged(firebaseAuth, (fbUser) => {
-        void applyUser(
-          fbUser
-            ? {
-                uid: fbUser.uid,
-                displayName: fbUser.displayName ?? 'لاعب جوجل',
-                photoURL: fbUser.photoURL ?? '',
-                provider: 'google',
-              }
-            : null,
-        ).finally(() => setLoading(false));
-      });
-      return () => unsub();
+      const auth = firebaseAuth;
+      let unsub = () => {};
+      let cancelled = false;
+
+      void setPersistence(auth, browserSessionPersistence)
+        .then(() => getRedirectResult(auth))
+        .catch((err: unknown) => setAuthError(friendlyAuthError(err)))
+        .finally(() => {
+          if (cancelled) return;
+          unsub = onAuthStateChanged(auth, (fbUser) => {
+            const next = fbUser ? fromFirebaseUser(fbUser) : readGuestSession();
+            void applyUser(next).finally(() => setLoading(false));
+          });
+        });
+
+      return () => {
+        cancelled = true;
+        unsub();
+      };
     }
     const hydrate = window.setTimeout(() => {
-      void applyUser(readLocalSession()).finally(() => setLoading(false));
+      void applyUser(readGuestSession()).finally(() => setLoading(false));
     }, 0);
     return () => window.clearTimeout(hydrate);
   }, [applyUser]);
 
-  const signInWithGoogle = useCallback(
-    async (displayNameFallback?: string) => {
-      if (firebaseReady && firebaseAuth && googleProvider) {
-        // الموبايل بيحجب النوافذ المنبثقة — redirect هناك، وبعد الرجوع
-        // onAuthStateChanged بيكمل تسجيل الجلسة لوحده
-        const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-        try {
-          if (isMobile) {
-            await signInWithRedirect(firebaseAuth, googleProvider);
-            return;
-          }
-          const credential = await signInWithPopup(firebaseAuth, googleProvider);
-          await applyUser({
-            uid: credential.user.uid,
-            displayName: credential.user.displayName ?? 'لاعب جوجل',
-            photoURL: credential.user.photoURL ?? '',
-            provider: 'google',
-          });
-        } catch (err) {
-          throw friendlyAuthError(err);
-        }
-        return;
-      }
-      // وضع محلي — نفس البروفايل على السيرفر من غير أكونت جوجل
-      const localUser: AuthUser = {
-        uid: `local:${(typeof crypto !== 'undefined' && crypto.randomUUID)
-          ? crypto.randomUUID().slice(0, 12)
-          : String(Date.now())}`,
-        displayName: displayNameFallback?.trim() || 'لاعب سري',
-        photoURL: '',
-        provider: 'local',
-      };
-      writeLocalSession(localUser);
-      await applyUser(localUser);
-    },
-    [applyUser],
-  );
+  const signIn = useCallback(async (provider: FirebaseProvider | null) => {
+    if (!firebaseReady || !firebaseAuth || !provider) {
+      throw new Error('الحسابات السحابية محتاجة إعداد Firebase الأول');
+    }
+    setAuthError(null);
+    try {
+      writeGuestSession(null);
+      const credential = await signInWithPopup(firebaseAuth, provider);
+      await applyUser(fromFirebaseUser(credential.user));
+    } catch (err) {
+      const safeError = friendlyAuthError(err);
+      setAuthError(safeError);
+      throw safeError;
+    }
+  }, [applyUser]);
+
+  const signInWithGoogle = useCallback(() => signIn(googleProvider), [signIn]);
+  const signInWithFacebook = useCallback(() => signIn(facebookProvider), [signIn]);
+
+  const continueAsGuest = useCallback(async () => {
+    if (firebaseAuth?.currentUser) await firebaseSignOut(firebaseAuth);
+    const existing = readGuestSession();
+    const guest: AuthUser = existing ?? {
+      uid: `guest:${crypto.randomUUID()}`,
+      displayName: 'ضيف الحارة',
+      photoURL: '',
+      provider: 'guest',
+    };
+    writeGuestSession(guest);
+    await applyUser(guest);
+  }, [applyUser]);
 
   const signOut = useCallback(async () => {
-    if (firebaseReady && firebaseAuth) await firebaseSignOut(firebaseAuth);
-    writeLocalSession(null);
+    if (firebaseAuth?.currentUser) await firebaseSignOut(firebaseAuth);
+    writeGuestSession(null);
     await applyUser(null);
   }, [applyUser]);
 
   const refreshProfile = useCallback(async () => {
     if (!user) return;
-    try {
-      setProfile(await syncProfile(user));
-    } catch {
-      /* offline — retry on next sync */
+    if (user.provider === 'guest') {
+      setProfile(loadGuestProfile());
+      return;
     }
+    await loadProfile(user, syncGeneration.current);
+  }, [user, loadProfile]);
+
+  const setPlayerName = useCallback(async (name: string) => {
+    if (!user) throw new Error('سجّل الدخول الأول');
+    if (user.provider === 'guest') {
+      const current = loadGuestProfile();
+      const next: PlayerProfile = {
+        ...current,
+        playerName: name,
+        nameStatus: 'set',
+        nameSetAt: new Date().toISOString(),
+      };
+      saveGuestProfile(next);
+      setProfile(next);
+      return;
+    }
+    const response = await fetch(`${SERVER_URL}/api/profile/player-name`, {
+      method: 'POST',
+      headers: await authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ playerName: name }),
+    });
+    const payload = (await response.json()) as { profile?: PlayerProfile; error?: string };
+    if (!response.ok || !payload.profile) throw new Error(payload.error ?? 'مقدرناش نحفظ الاسم');
+    setProfile(payload.profile);
   }, [user]);
 
-  const value = useMemo(
-    () => ({ user, profile, loading, googleReady: firebaseReady, signInWithGoogle, signOut, refreshProfile }),
-    [user, profile, loading, signInWithGoogle, signOut, refreshProfile],
-  );
+  const updateGuestProfile = useCallback((updater: (current: PlayerProfile) => PlayerProfile) => {
+    setProfile((current) => {
+      const next = updater(current ?? loadGuestProfile());
+      saveGuestProfile(next);
+      return next;
+    });
+  }, []);
+
+  const value = useMemo(() => ({
+    user,
+    profile,
+    loading,
+    profileLoading,
+    profileError,
+    authError,
+    firebaseReady,
+    googleReady: firebaseReady,
+    isGuest: user?.provider === 'guest',
+    signInWithGoogle,
+    signInWithFacebook,
+    continueAsGuest,
+    signOut,
+    refreshProfile,
+    setPlayerName,
+    updateGuestProfile,
+  }), [user, profile, loading, profileLoading, profileError, authError, signInWithGoogle, signInWithFacebook, continueAsGuest, signOut, refreshProfile, setPlayerName, updateGuestProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

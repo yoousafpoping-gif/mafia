@@ -19,6 +19,9 @@ import {
   serverTimestamp,
   arrayUnion,
   getDoc,
+  getDocs,
+  query,
+  where,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { firebaseDb } from './firebase';
@@ -67,10 +70,28 @@ interface GuestDoc {
   candH?: string[];
 }
 
+interface HostPresence {
+  alive?: boolean;
+  hostToken?: string;
+  updatedAt?: { toMillis?: () => number };
+}
+
 const peersCol = (code: string) => collection(requireDb(), 'rooms', code, 'peers');
 const guestDoc = (code: string, peerId: string) => doc(requireDb(), 'rooms', code, 'peers', peerId);
 /** مستندات Firestore لازم يبقى عدد شرايحها زوجي — حضور الهوست جوه peers نفسها */
 const hostPresenceDoc = (code: string) => doc(requireDb(), 'rooms', code, 'peers', 'host');
+const publicRoomDoc = (code: string) => doc(requireDb(), 'publicRooms', code);
+
+export async function listPublicRoomCodes(): Promise<string[]> {
+  const snapshot = await getDocs(query(collection(requireDb(), 'publicRooms'), where('open', '==', true)));
+  const now = Date.now();
+  return snapshot.docs
+    .filter((entry) => {
+      const updatedAt = entry.data()?.updatedAt?.toMillis?.() ?? 0;
+      return updatedAt > 0 && now - updatedAt < 3 * 60_000;
+    })
+    .map((entry) => entry.id);
+}
 
 /** قناة بيانات موثوقة زي PeerJS — رسائل Envelope نصية JSON مع طابور قبل الفتح */
 class ChannelConn {
@@ -160,7 +181,7 @@ export class RoomHost {
   private heartbeat?: number;
   private onPageHide?: () => void;
 
-  constructor(code: string) {
+  constructor(code: string, private isPublic = false, private hostToken = uid()) {
     this.code = code;
     this.ready = new Promise<void>((resolve, reject) => {
       this.rejectReady = reject;
@@ -169,16 +190,46 @@ export class RoomHost {
   }
 
   private async start() {
-    await setDoc(hostPresenceDoc(this.code), { alive: true, updatedAt: serverTimestamp() });
+    const presenceRef = hostPresenceDoc(this.code);
+    const existing = await getDoc(presenceRef);
+    if (this.destroyed) {
+      throw { code: 'HOST_START_CANCELLED', message: 'Host startup was cancelled' };
+    }
+    if (existing.exists()) {
+      const data = existing.data() as HostPresence;
+      const lastBeat = data.updatedAt?.toMillis?.() ?? 0;
+      const fresh = lastBeat > 0 && Date.now() - lastBeat < 90_000;
+      if (fresh && data.hostToken && data.hostToken !== this.hostToken) {
+        throw { type: 'unavailable-id', code: 'HOST_COLLISION', message: 'Room code is owned by another host' };
+      }
+    }
+    await setDoc(presenceRef, {
+      alive: true,
+      hostToken: this.hostToken,
+      updatedAt: serverTimestamp(),
+    });
+    if (this.destroyed) {
+      await deleteDoc(presenceRef).catch(() => undefined);
+      throw { code: 'HOST_START_CANCELLED', message: 'Host startup was cancelled' };
+    }
+    if (this.isPublic) {
+      await setDoc(publicRoomDoc(this.code), { open: true, updatedAt: serverTimestamp() });
+    }
     // نبضة حياة — الضيف بيرفض الأوضة لو آخر نبضة قديمة (تاب مقفول/مجمد)
     this.heartbeat = window.setInterval(() => {
       void updateDoc(hostPresenceDoc(this.code), { updatedAt: serverTimestamp() }).catch(
         () => undefined,
       );
+      if (this.isPublic) {
+        void updateDoc(publicRoomDoc(this.code), { updatedAt: serverTimestamp() }).catch(
+          () => undefined,
+        );
+      }
     }, 50_000);
     this.onPageHide = () => {
+      // Refresh/navigation keeps the lease. The restored host can reclaim it only
+      // with the same private token; explicit leave still deletes it in destroy().
       window.clearInterval(this.heartbeat);
-      void deleteDoc(hostPresenceDoc(this.code)).catch(() => undefined);
     };
     window.addEventListener('pagehide', this.onPageHide);
     this.watchGuests();
@@ -293,6 +344,18 @@ export class RoomHost {
     this.conns.get(socketId)?.send(toJson({ kind: 'emit', event, payload }));
   }
 
+  disconnectPeer(socketId: string) {
+    const conn = this.conns.get(socketId);
+    if (!conn) return;
+    this.conns.delete(socketId);
+    this.voiceJoined.delete(socketId);
+    try {
+      conn.close();
+    } catch {
+      /* already closed */
+    }
+  }
+
   private handleMessage(conn: ChannelConn, raw: string) {
     const msg = fromJson<Envelope>(raw);
     if (!msg || msg.kind !== 'request') return;
@@ -351,6 +414,7 @@ export class RoomHost {
     }
     this.conns.clear();
     void deleteDoc(hostPresenceDoc(this.code)).catch(() => undefined);
+    if (this.isPublic) void deleteDoc(publicRoomDoc(this.code)).catch(() => undefined);
   }
 }
 

@@ -14,10 +14,10 @@ export class GameStateManager {
     this.sweeper.unref?.();
   }
 
-  createRoom({ name, socketId, isPublic = false }) {
+  createRoom({ name, socketId, isPublic = false, cosmetics }) {
     const cleanName = sanitizeName(name);
     const code = this._generateCode();
-    const room = new GameRoom(this.io, code, { name: cleanName, socketId });
+    const room = new GameRoom(this.io, code, { name: cleanName, socketId, cosmetics });
     // البحث السريع بيعمل أوض عامة — باقي الأوض بالكود بس (خاصة)
     room.isPublic = Boolean(isPublic);
     this.rooms.set(code, room);
@@ -26,17 +26,17 @@ export class GameStateManager {
     return { room, player: room.players.get(room.hostId) };
   }
 
-  joinRoom({ code, name, token, socketId }) {
+  joinRoom({ code, name, token, socketId, cosmetics }) {
     const room = this.getRoom(code);
 
     if (token) {
-      const player = room.reattach({ token, socketId });
+      const player = room.reattach({ token, socketId, cosmetics });
       this._bind(socketId, room.code, player.id);
       logger.info(`${player.name} rejoined room ${room.code}`);
       return { room, player, rejoined: true };
     }
 
-    const player = room.addPlayer({ name, socketId });
+    const player = room.addPlayer({ name, socketId, cosmetics });
     this._bind(socketId, room.code, player.id);
     logger.info(`${player.name} joined room ${room.code}`);
     return { room, player, rejoined: false };

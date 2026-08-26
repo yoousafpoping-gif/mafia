@@ -1,6 +1,10 @@
 import { PHASES } from './constants';
 
-export const REACTION_IDS = Object.freeze(['evil_laugh', 'applause', 'gasp', 'shush', 'target']);
+/** إيموجي الريأكشنز المسموح بيها (whitelist) — الخمسة الأولى مجانية والباقي من المتجر */
+export const REACTION_IDS = Object.freeze([
+  'evil_laugh', 'applause', 'gasp', 'shush', 'target',
+  'fire', 'skull', 'money', 'clap_gold',
+]);
 
 export const DAY_PHASES = new Set<string>([
   PHASES.DAY_DISCUSSION,

@@ -14,9 +14,11 @@ export interface ReactionDef {
   fallback: string;
   asset: string;
   sound: string;
+  /** لو موجود — الريأكشن مدفوع في المتجر ومحتاج ملكية العنصر ده */
+  storeItem?: string;
 }
 
-export type ReactionId = 'evil_laugh' | 'applause' | 'gasp' | 'shush' | 'target';
+export type ReactionId = 'evil_laugh' | 'applause' | 'gasp' | 'shush' | 'target' | 'fire' | 'skull' | 'money' | 'clap_gold';
 
 export const REACTIONS: ReactionDef[] = [
   {
@@ -46,6 +48,7 @@ export const REACTIONS: ReactionDef[] = [
     fallback: '🤫',
     asset: '/assets/emojis/shush_3d.png',
     sound: '/assets/sounds/reactions/shush.wav',
+    storeItem: 'emote-shush',
   },
   {
     id: 'target',
@@ -53,6 +56,40 @@ export const REACTIONS: ReactionDef[] = [
     fallback: '🎯',
     asset: '/assets/emojis/target_3d.png',
     sound: '/assets/sounds/reactions/target.wav',
+    storeItem: 'emote-target',
+  },
+  /* --- ريأكشنز المتجر — بتظهر في الشريط لمن يملكها --- */
+  {
+    id: 'fire',
+    label: 'نار 🔥',
+    fallback: '🔥',
+    asset: '/assets/emojis/fire_3d.svg',
+    sound: '/assets/sounds/reactions/evil_laugh.wav',
+    storeItem: 'emote-fire',
+  },
+  {
+    id: 'skull',
+    label: 'موت 💀',
+    fallback: '💀',
+    asset: '/assets/emojis/skull_3d.svg',
+    sound: '/assets/sounds/reactions/gasp.wav',
+    storeItem: 'emote-skull',
+  },
+  {
+    id: 'money',
+    label: 'فلوس 💰',
+    fallback: '💰',
+    asset: '/assets/emojis/money_3d.svg',
+    sound: '/assets/sounds/reactions/target.wav',
+    storeItem: 'emote-money',
+  },
+  {
+    id: 'clap_gold',
+    label: 'برافو ✨',
+    fallback: '✨',
+    asset: '/assets/emojis/clap_gold_3d.svg',
+    sound: '/assets/sounds/reactions/applause.wav',
+    storeItem: 'emote-clap-gold',
   },
 ];
 

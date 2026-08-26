@@ -1,14 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAudioSettings } from '@/context/AudioContext';
 import { GAME_LOGO, GAME_TITLE } from '@/lib/branding';
-import { useAuth } from '@/context/AuthContext';
+import type { RoomSettingsState } from '@/lib/types';
+import { authHeaders, useAuth } from '@/context/AuthContext';
+import { SERVER_URL } from '@/lib/config';
+import { claimGuestDaily, claimGuestLoginReward, claimGuestQuest, guestDailyInfo } from '@/lib/guestProfile';
+import { CustomRoomModal } from './CustomRoomModal';
+import { StoreModal } from './StoreModal';
+import { HomeTopBar } from './HomeTopBar';
+import { DailyTasksPanel } from './DailyTasksPanel';
+import { LoginRewardsModal } from './LoginRewardsModal';
 import {
   Bot,
   Coins,
-  Globe,
   Loader2,
   LogIn,
   LogOut,
@@ -21,55 +28,109 @@ import {
 } from 'lucide-react';
 
 interface LandingScreenProps {
-  name: string;
-  onNameChange: (value: string) => void;
   codeInput: string;
   onCodeChange: (value: string) => void;
   busy: boolean;
   connected: boolean;
   onCreate: () => void;
+  onCreateCustom: (settings: RoomSettingsState) => void;
   onJoin: () => void;
   onPractice: () => void;
   onQuickMatch: () => void;
 }
 
 export function LandingScreen({
-  name,
-  onNameChange,
   codeInput,
   onCodeChange,
   busy,
   connected,
   onCreate,
+  onCreateCustom,
   onJoin,
   onPractice,
   onQuickMatch,
 }: LandingScreenProps) {
   const [joinOpen, setJoinOpen] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const canAct = name.trim().length >= 2 && !busy;
-  const { user, profile, loading: authLoading, googleReady, signInWithGoogle, signOut } = useAuth();
-  const [authBusy, setAuthBusy] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [storeOpen, setStoreOpen] = useState(false);
+  const [loginRewardsOpen, setLoginRewardsOpen] = useState(false);
+  const [rewardBusy, setRewardBusy] = useState('');
+  const [rewardMessage, setRewardMessage] = useState('');
+  const { user, profile, refreshProfile, updateGuestProfile } = useAuth();
+  const canAct = Boolean(profile?.playerName) && !busy;
+  const dailyInfo = useMemo(() => profile ? guestDailyInfo(profile, []) : null, [profile]);
 
-  const handleGoogle = async () => {
-    setAuthBusy(true);
-    setAuthError(null);
+  const claimReward = async (kind: 'gift' | 'quest', questId?: string) => {
+    if (!user || !profile) return;
+    setRewardBusy(kind === 'gift' ? 'gift' : `quest:${questId}`);
+    setRewardMessage('');
     try {
-      await signInWithGoogle(name);
-    } catch (err) {
-      setAuthError(err instanceof Error ? err.message : 'تسجيل الدخول فشل — جرب تاني');
+      if (user.provider === 'guest') {
+        updateGuestProfile((current) => kind === 'gift' ? claimGuestDaily(current) : claimGuestQuest(current, questId ?? ''));
+      } else {
+        const response = await fetch(`${SERVER_URL}${kind === 'gift' ? '/api/store/claim-daily' : '/api/profile/quests/claim'}`, {
+          method: 'POST',
+          headers: await authHeaders({ 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() }),
+          body: JSON.stringify(kind === 'gift' ? {} : { questId }),
+        });
+        const payload = await response.json().catch(() => ({})) as { error?: string };
+        if (!response.ok) throw new Error(payload.error ?? 'CLAIM_FAILED');
+        await refreshProfile();
+      }
+      setRewardMessage('تم التحصيل وإضافة المكافأة لرصيدك');
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      setRewardMessage(code === 'DAILY_CLAIMED' || code === 'QUEST_CLAIMED' ? 'المكافأة دي اتحصلت بالفعل' : 'مقدرناش نحصّل المكافأة دلوقتي');
     } finally {
-      setAuthBusy(false);
+      setRewardBusy('');
     }
   };
 
+  const claimLoginReward = async (day: number) => {
+    if (!user || !profile) return;
+    setRewardBusy(`login:${day}`);
+    setRewardMessage('');
+    try {
+      if (user.provider === 'guest') updateGuestProfile((current) => claimGuestLoginReward(current, day));
+      else {
+        const response = await fetch(`${SERVER_URL}/api/profile/login-rewards/claim`, {
+          method: 'POST',
+          headers: await authHeaders({ 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() }),
+          body: JSON.stringify({ day }),
+        });
+        const payload = await response.json().catch(() => ({})) as { error?: string };
+        if (!response.ok) throw new Error(payload.error ?? 'CLAIM_FAILED');
+        await refreshProfile();
+      }
+      setRewardMessage('تم استلام مكافأة اليوم');
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      setRewardMessage(code.includes('CLAIMED') ? 'المكافأة مستلمة بالفعل' : 'تعذر استلام المكافأة');
+    } finally { setRewardBusy(''); }
+  };
+
   return (
-    <main className="custom-scrollbar relative h-dvh w-full overflow-y-auto overflow-x-hidden bg-[#05060a] bg-[url('/assets/backgrounds/main_bg.jpeg')] bg-cover bg-center bg-no-repeat">
+    <main
+      className="custom-scrollbar relative h-dvh w-full overflow-y-auto overflow-x-hidden bg-[#05060a] bg-cover bg-center bg-no-repeat"
+      style={{ backgroundImage: "url('/assets/backgrounds/main_bg.jpeg')" }}
+    >
       {/* dark noir wash over the photographic backdrop for text contrast */}
       <div aria-hidden className="pointer-events-none absolute inset-0 bg-black/60 backdrop-brightness-75" />
+      <motion.div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-0 bg-black"
+        animate={{ opacity: [0.1, 0.5, 0.1, 0.6, 0.2, 0.4] }}
+        transition={{
+          repeat: Infinity,
+          duration: 4,
+          ease: 'easeInOut',
+          times: [0, 0.1, 0.3, 0.5, 0.8, 1],
+        }}
+      />
 
-      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-3 px-4 py-5">
+      <HomeTopBar user={user} profile={profile} onRewards={() => setLoginRewardsOpen(true)} onStore={() => setStoreOpen(true)} onSettings={() => setSettingsOpen(true)} />
+      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-3 px-4 pb-8 pt-24">
         <GameLogoFx />
 
         <div className="text-center">
@@ -88,93 +149,6 @@ export function LandingScreen({
           transition={{ delay: 0.25, duration: 0.55 }}
           className="mt-1 w-[90%] max-w-md rounded-2xl border border-white/15 bg-black/45 p-4 shadow-[0_0_60px_rgba(0,0,0,0.7),inset_0_0_0_1px_rgba(255,255,255,0.05)] backdrop-blur-md sm:p-5 lg:w-96"
         >
-          {/* دخول جوجل / بروفايل اللاعب */}
-          <div className="mb-3">
-            {authLoading ? (
-              <div className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] py-2.5 text-xs text-slate-500">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-gold-400" />
-                بنشوف جلستك...
-              </div>
-            ) : user ? (
-              <div className="flex items-center gap-2.5 rounded-xl border border-gold-500/40 bg-gold-500/[0.08] px-3 py-2">
-                {user.photoURL ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={user.photoURL}
-                    alt=""
-                    referrerPolicy="no-referrer"
-                    className="h-9 w-9 rounded-full border border-gold-500/60 object-cover"
-                  />
-                ) : (
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gold-500/60 bg-night-950 font-serif text-xs font-black text-gold-200">
-                    {user.displayName.slice(0, 2).toUpperCase()}
-                  </span>
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-black text-gold-100">
-                    {user.displayName}
-                  </span>
-                  <span className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-400">
-                    <span>{profile?.rank ?? 'مواطن'}</span>
-                    {profile && (
-                      <span className="flex items-center gap-0.5 font-mono font-bold text-gold-400">
-                        <Coins className="h-3 w-3" /> {profile.coins}
-                      </span>
-                    )}
-                  </span>
-                </span>
-                <button
-                  onClick={() => void signOut()}
-                  title="اخرج من الحساب"
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-night-600 bg-night-900/80 text-slate-400 transition hover:border-blood-500/60 hover:text-blood-300"
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => void handleGoogle()}
-                disabled={authBusy}
-                className="flex min-h-[46px] w-full items-center gap-3 rounded-xl border border-white/15 bg-white/[0.06] px-3.5 transition hover:border-gold-400/50 hover:bg-white/[0.1] disabled:cursor-not-wait disabled:opacity-60"
-              >
-                {authBusy ? (
-                  <Loader2 className="h-5 w-5 shrink-0 animate-spin text-gold-300" />
-                ) : (
-                  <GoogleMark className="h-5 w-5 shrink-0" />
-                )}
-                <span className="min-w-0 flex-1 text-right">
-                  <span className="block text-sm leading-tight font-black text-slate-100">
-                    ادخل بحساب جوجل
-                  </span>
-                  <span className="block text-[10px] text-slate-500">
-                    {googleReady
-                      ? '500 كوينز هدية أول دخول + صدارة أسبوعية'
-                      : 'وضع تجريبي محلي — نفس البروفايل والصدارة من غير أكونت'}
-                  </span>
-                </span>
-              </button>
-            )}
-          </div>
-
-          <label className="mb-3 block">
-            <span className="mb-1 block font-mono text-[9px] tracking-[0.3em] text-slate-500 uppercase">
-              your name · اسمك
-            </span>
-            <input
-              value={name}
-              onChange={(event) => onNameChange(event.target.value)}
-              maxLength={16}
-              placeholder="اكتب اسمك هنا..."
-              className="w-full rounded-lg border border-night-600 bg-night-900/90 px-3 py-2.5 text-sm text-slate-100 placeholder-slate-600 outline-none transition focus:border-gold-500/60 focus:ring-2 focus:ring-gold-500/20"
-            />
-          </label>
-
-          {authError && (
-            <p className="mb-3 rounded-lg border border-blood-500/50 bg-blood-900/30 px-3 py-2 text-center text-xs font-bold text-blood-200">
-              {authError}
-            </p>
-          )}
-
           <nav className="space-y-2">
             {/* CREATE ROOM — primary */}
             <motion.button
@@ -196,6 +170,15 @@ export function LandingScreen({
                 </span>
               </span>
             </motion.button>
+
+            <MenuRow
+              icon={<SettingsIcon className="h-4.5 w-4.5" />}
+              ar="غرفة مخصصة"
+              en="custom room"
+              active={customOpen}
+              disabled={!canAct}
+              onClick={() => setCustomOpen(true)}
+            />
 
             {/* QUICK MATCH — البحث السريع */}
             <motion.button
@@ -268,12 +251,13 @@ export function LandingScreen({
               onClick={onPractice}
             />
 
-            {/* MULTIPLAYER */}
+            {/* STORE */}
             <MenuRow
-              icon={<Globe className="h-4.5 w-4.5" />}
-              ar="أونلاين ضد الناس"
-              en="multiplayer"
-              onClick={() => setJoinOpen(true)}
+              icon={<Coins className="h-4.5 w-4.5" />}
+              ar={user ? `المتجر · ${profile?.coins ?? 0} كوينز` : 'المتجر'}
+              en="cosmetic store"
+              disabled={!user}
+              onClick={() => setStoreOpen(true)}
             />
 
             {/* SETTINGS */}
@@ -308,7 +292,39 @@ export function LandingScreen({
         </motion.div>
       </div>
 
+      {profile && dailyInfo && (
+        <div className="relative z-20 mx-4 mb-6 lg:m-0">
+          <DailyTasksPanel
+            profile={profile}
+            busyKey={rewardBusy}
+            message={rewardMessage}
+            giftClaimable={dailyInfo.gift.claimable}
+            giftCoins={dailyInfo.gift.nextCoins}
+            giftGems={dailyInfo.gift.nextGems}
+            onGift={() => void claimReward('gift')}
+            onQuest={(questId) => void claimReward('quest', questId)}
+          />
+        </div>
+      )}
+      <CustomRoomModal
+        open={customOpen}
+        busy={busy}
+        onClose={() => setCustomOpen(false)}
+        onCreate={(settings) => {
+          setCustomOpen(false);
+          onCreateCustom(settings);
+        }}
+      />
+      <LoginRewardsModal
+        open={loginRewardsOpen}
+        claimedDays={profile?.loginCalendar?.claimedDays ?? []}
+        busy={rewardBusy.startsWith('login:')}
+        message={rewardMessage}
+        onClose={() => setLoginRewardsOpen(false)}
+        onClaim={(day) => void claimLoginReward(day)}
+      />
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <StoreModal open={storeOpen} onClose={() => setStoreOpen(false)} />
     </main>
   );
 }
@@ -390,19 +406,6 @@ function GameLogoFx() {
         className="relative z-10 mx-auto mb-4 h-44 w-44 animate-pulse object-contain drop-shadow-[0_0_35px_rgba(212,175,55,0.8)]"
       />
     </motion.div>
-  );
-}
-
-/* ---------------- google G mark ---------------- */
-
-function GoogleMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 48 48" className={className} aria-hidden style={{ display: 'block' }}>
-      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-    </svg>
   );
 }
 

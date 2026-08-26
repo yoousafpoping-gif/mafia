@@ -1,0 +1,855 @@
+﻿diff --git a/client/src/components/CouncilTable.tsx b/client/src/components/CouncilTable.tsx
+index ac41f4e..0bb106e 100644
+--- a/client/src/components/CouncilTable.tsx
++++ b/client/src/components/CouncilTable.tsx
+@@ -14,46 +14,48 @@ const PHASE_AR: Partial<Record<Phase, string>> = {
+   DAY_DISCUSSION: 'Ïº┘ä┘å┘éÏºÏ┤',
+   DAY_VOTING: 'Ïº┘ä┘àÏ¡Ïº┘â┘àÏ®',
+   DEFENSE_STAGE: 'Ïº┘äÏ»┘üÏºÏ╣',
+   LAST_WORDS: 'ÏóÏ«Ï▒ ┘â┘äÏº┘à',
+   GAME_OVER: 'Ïº┘ä┘å┘çÏº┘èÏ®',
+ };
+ 
+ interface SeatMath {
+   x: number;
+   y: number;
+   inwardX: number;
+   inwardY: number;
+ }
+ 
+ /**
+  * Elliptical seat layout ÔÇö Ïº┘ä┘àÏ│Ï▒Ï¡ Ï¿┘èÏºÏ«Ï» Ï╣Ï▒ÏÂ ┘êÏºÏ▒Ï¬┘üÏºÏ╣ Ïº┘äÏ¡Ïº┘ê┘èÏ® ┘â┘ä┘çÏºÏî
+  * ┘üÏº┘ä┘åÏ│Ï¿ Ï¿Ï¬Ï┤Ï¬Ï║┘ä ┘àÏ¡Ïº┘êÏ▒ ┘àÏ│Ï¬┘é┘äÏ®: Ï╣┘ä┘ë Ïº┘ä┘à┘êÏ¿Ïº┘è┘ä Ïº┘äÏÀ┘ê┘ä Ïú┘âÏ¿Ï▒ ┘üÏº┘ä┘àÏ¡┘êÏ▒ Ïº┘äÏ▒ÏúÏ│┘è
+  * Ï¿┘è┘ê┘üÏ▒ ┘àÏ│Ïº┘üÏ® Ï¿┘è┘å Ïº┘ä┘âÏ▒┘êÏ¬ Ïº┘äÏ¼┘åÏ¿ Ï¿Ï╣ÏÂ (┘àÏ▒Ï¿Ï╣ Ï▓┘àÏº┘å ┘âÏº┘å Ï¿┘è┘éÏÁ ┘ê┘èÏ▓ÏºÏ¡┘à).
+  */
+ function seatPos(index: number, total: number): SeatMath {
+-  const angle = (index / total) * 2 * Math.PI - Math.PI/2;
++  const angle = (index / total) * 2 * Math.PI - Math.PI / 2;
+   const cos = Math.cos(angle);
+   const sin = Math.sin(angle);
++  const crowded = total >= 9;
+   return {
+-    x: 50 + 36 * cos,
+-    y: 50 + 33 * sin,
++    // Keep the full card and its name inside the stage, not merely its center.
++    x: 50 + (crowded ? 40 : 38) * cos,
++    y: 50 + (crowded ? 38 : 36) * sin,
+     inwardX: -cos,
+     inwardY: -sin,
+   };
+ }
+ 
+ export function CouncilTable({
+   state,
+   onRevealMayor,
+   speakingIds = [],
+   recentMessages = {},
+   reactions = [],
+ }: {
+   state: GameState;
+   onRevealMayor: () => void;
+   /** socket ids currently detected as talking (from the voice analysers) */
+   speakingIds?: string[];
+   /** ÏóÏ«Ï▒ Ï▒Ï│Ïº┘äÏ® Ï┤ÏºÏ¬ ┘ä┘â┘ä ┘äÏºÏ╣Ï¿ ÔÇö Ï¿Ï¬Ï©┘çÏ▒ ┘âÏ¿Ïº┘ä┘ê┘åÏ® ┘ü┘ê┘é Ïº┘ä┘âÏºÏ▒Ï¬ */
+   recentMessages?: Record<string, string>;
+   /** Ï▒┘èÏú┘âÏ┤┘åÏ▓ ┘åÏ┤ÏÀÏ® ÔÇö ÏÑ┘è┘à┘êÏ¼┘è 3D Ï¿Ï¬┘å┘üÏ¼Ï▒ ┘ü┘ê┘é ┘âÏºÏ▒Ï¬ Ïº┘ä┘äÏºÏ╣Ï¿ */
+   reactions?: { playerId: string; emojiId: string; at: number; key: number }[];
+diff --git a/client/src/components/GameClient.tsx b/client/src/components/GameClient.tsx
+index 6922bd4..045793b 100644
+--- a/client/src/components/GameClient.tsx
++++ b/client/src/components/GameClient.tsx
+@@ -293,41 +293,41 @@ export function GameClient({ code }: { code: string }) {
+             <LobbyView
+               state={state}
+               onStart={game.startGame}
+               onAddBot={(count) => void game.addBot(count)}
+             />
+           </div>
+         </main>
+       )}
+ 
+       {(inGame || state.phase === 'GAME_OVER') && (
+         <>
+           {/* Ï¼Ï▒┘èÏ»Ï® Ïº┘ä┘è┘ê┘à Ïº┘äÏ│ÏºÏ¿Ï╣ ÔÇö Ïº┘äÏ¬Ï▒┘èÏ¼Ï▒ ┘ü┘è Ïº┘ä┘Ç effect ┘ü┘ê┘é Ï╣┘ä┘ë [phase, round] */}
+           {showNewspaper && state.phase === 'DAY_DISCUSSION' && (
+             <NewspaperModal
+               report={state.nightReport ?? null}
+               round={state.round}
+             />
+           )}
+           <main className="relative min-h-0 flex-1">
+             {/* pt/pb Ïú┘àÏº┘å: ┘àÏ│Ïº┘üÏ® ┘ü┘ê┘é ┘ä┘ä┘ç┘èÏ»Ï▒ ┘êÏ¬Ï¡Ï¬ ┘äÏ»┘ê┘â Ïº┘äÏ┤ÏºÏ¬ Ï╣Ï┤Ïº┘å Ïº┘ä┘âÏ▒┘êÏ¬ ┘àÏº Ï¬┘éÏÁ┘æÏ┤ */}
+-            <div className="absolute inset-0 px-4 pb-28 pt-16 sm:px-4">
++            <div className="absolute inset-0 px-[max(0.75rem,env(safe-area-inset-left))] pb-[max(7rem,env(safe-area-inset-bottom))] pt-[max(4rem,env(safe-area-inset-top))] sm:px-6">
+               {state.phase !== 'GAME_OVER' ? (
+                 <CouncilTable
+                       state={state}
+                       onRevealMayor={game.revealMayor}
+                       speakingIds={tableSpeakingIds}
+                       recentMessages={bubbles}
+                       reactions={game.reactions}
+                     />
+               ) : (
+                 state.result && (
+                   <div className="mx-auto h-full max-w-3xl overflow-y-auto">
+                     <GameOverScreen
+                       result={state.result}
+                       youId={you.id}
+                       isHost={you.isHost}
+                       players={state.players}
+                       rematchVotes={state.rematchVotes ?? []}
+                       onVoteRematch={game.voteRematch}
+                       onPlayAgain={game.startGame}
+                       onLeave={handleLeave}
+diff --git a/client/src/hooks/useMafiaGame.ts b/client/src/hooks/useMafiaGame.ts
+index 50fee27..51fd45a 100644
+--- a/client/src/hooks/useMafiaGame.ts
++++ b/client/src/hooks/useMafiaGame.ts
+@@ -68,68 +68,71 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
+   const reactionKey = useRef(0);
+   const toastId = useRef(0);
+   const seatRef = useRef(loadSeat(code ?? ''));
+ 
+   const pushToast = useCallback((message: string, errorCode?: string) => {
+     toastId.current += 1;
+     const item: ToastItem = { id: toastId.current, message, code: errorCode };
+     setToasts((prev) => [...prev.slice(-3), item]);
+     setTimeout(() => {
+       setToasts((prev) => prev.filter((t) => t.id !== item.id));
+     }, 5000);
+   }, []);
+ 
+   const dismissToast = useCallback((id: number) => {
+     setToasts((prev) => prev.filter((t) => t.id !== id));
+   }, []);
+ 
+   const applyState = useCallback((next: GameState | null | undefined) => {
+     if (!next) return;
+     setState(next);
++    if (next.voicePolicy) setVoicePolicy(next.voicePolicy);
+     setStatus({ connected: true, seated: true, joining: false });
+   }, []);
+ 
+   // Ïú┘è ÏÀ┘äÏ¿ Ï▒Ïº┘èÏ¡ ┘ä┘ä┘ç┘êÏ│Ï¬ ÔÇö ┘ç┘êÏ│Ï¬ ┘àÏ¡┘ä┘è Ïú┘ê Ï¿┘è┘èÏ▒ Ï¿Ï╣┘èÏ».
+   const request = useCallback(async (event: string, payload?: unknown) => {
+     const current = getRoomNet();
+     if (!current) throw new ServerError({ code: 'NOT_CONNECTED', message: '┘à┘ü┘èÏ┤ ÏºÏ¬ÏÁÏº┘ä Ï¿Ïº┘äÏú┘êÏÂÏ®' });
+     return current.request(event, payload);
+   }, []);
+ 
+   const sync = useCallback(async () => {
+     try {
+       const current = getRoomNet();
+       if (!current) return;
+       const data = (await current.request('game:sync')) as { state: GameState };
+       applyState(data.state);
+     } catch (error) {
+       if (error instanceof ServerError && error.code === 'NOT_IN_ROOM') {
+         setStatus((prev) => ({ ...prev, seated: false }));
+       }
+     }
+   }, [applyState]);
+ 
+   useEffect(() => {
+     if (!net) return;
+ 
+-    const onRoomUpdate = (next: GameState) =>
++    const onRoomUpdate = (next: GameState) => {
+       setState((prev) => ({ ...(prev ?? next), ...next, you: next.you ?? prev?.you }));
++      if (next.voicePolicy) setVoicePolicy(next.voicePolicy);
++    };
+ 
+     const onPhaseChange = (payload: {
+       phase: GameState['phase'];
+       round: number;
+       deadline: number | null;
+       nightReport?: { victim: string | null; silenced: string | null } | null;
+       elimination?: { playerId: string; name: string; role: Role } | null;
+     }) => {
+       setState((prev) =>
+         prev
+           ? {
+               ...prev,
+               phase: payload.phase,
+               round: payload.round,
+               deadline: payload.deadline,
+               ...(payload.nightReport !== undefined ? { nightReport: payload.nightReport } : {}),
+             }
+           : prev,
+       );
+       setElimination(payload.elimination ?? null);
+@@ -209,40 +212,41 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
+     net.on('game:mayor_revealed', onMayorRevealed);
+     net.on('good_boy:prompt', onGoodBoyPrompt);
+     net.on('voice:policy', onVoicePolicy);
+     net.on('chat:message', onChatMessage);
+     net.on('reaction:show', onReaction);
+     net.on('game:over', onGameOver);
+     net.on('room:closed', onRoomClosed);
+     net.on('action:error', onErrorEvent);
+ 
+     return () => {
+       net.off('room:update', onRoomUpdate);
+       net.off('phase:change', onPhaseChange);
+       net.off('action:request', onActionRequest);
+       net.off('action:accepted', onActionAccepted);
+       net.off('game:started', onGameStarted);
+       net.off('game:night_result', onNightResult);
+       net.off('vote:progress', onVoteProgress);
+       net.off('game:vote_result', onVoteResult);
+       net.off('game:mayor_revealed', onMayorRevealed);
+       net.off('good_boy:prompt', onGoodBoyPrompt);
++      net.off('voice:policy', onVoicePolicy);
+       net.off('chat:message', onChatMessage);
+       net.off('reaction:show', onReaction);
+       net.off('game:over', onGameOver);
+       net.off('room:closed', onRoomClosed);
+       net.off('action:error', onErrorEvent);
+     };
+   }, [net, applyState, code, pushToast, sync]);
+ 
+   // ÏÁ┘üÏ¡Ï® Ïº┘äÏú┘êÏÂÏ®: ┘ä┘ê ┘à┘ü┘èÏ┤ ÏºÏ¬ÏÁÏº┘ä Ï¼Ïº┘çÏ▓ Ï¼Ï▒┘æÏ¿ ┘èÏ╣┘èÏ» Ïº┘äÏ▒Ï¿ÏÀ Ï¿Ïº┘äÏ¬┘ê┘â┘å Ïº┘ä┘àÏ¡┘ü┘êÏ©.
+   // ┘àÏ▒Ï® ┘êÏºÏ¡Ï»Ï® Ï¿Ï│ ┘ä┘â┘ä ┘â┘êÏ» ÔÇö ┘à┘å Ï║┘èÏ▒ Ïº┘äÏ¡ÏºÏ▒Ï│ Ï»┘ç Ïº┘ä┘Ç teardown ┘éÏ¿┘ä Ï»Ï«┘ê┘ä ┘èÏ»┘ê┘è
+   // Ï¿┘èÏ▒Ï¼┘æÏ╣ net ┘ä┘Ç null ┘ü┘èÏ¿Ï»Ïú Ïº┘äÏºÏ¬ÏÁÏº┘ä Ïº┘äÏ┤Ï¿Ï¡ Ï¿Ïº┘äÏ¬┘ê┘â┘å Ïº┘ä┘éÏ»┘è┘à Ï¿Ïº┘äÏ¬┘êÏºÏ▓┘è ┘àÏ╣
+   // Ïº┘äÏ»Ï«┘ê┘ä Ïº┘ä┘èÏ»┘ê┘èÏî ┘êÏº┘äÏºÏ¬┘å┘è┘å Ï¿┘èÏ¿┘ê┘æÏ©┘êÏº Ï¿Ï╣ÏÂ.
+   const rejoinTriedRef = useRef(false);
+   useEffect(() => {
+     if (!code || net) return;
+     if (rejoinTriedRef.current) {
+       setStatus((prev) => ({ ...prev, joining: false }));
+       return;
+     }
+     rejoinTriedRef.current = true;
+@@ -259,41 +263,42 @@ export function useMafiaGame({ code }: UseMafiaGameOptions = {}) {
+           setNet(created);
+           applyState(await created.sync());
+           return;
+         } catch {
+           /* Ïº┘äÏ¬┘ê┘â┘å ┘éÏ»┘è┘à ÔÇö ┘ç┘èÏ»Ï«┘ä ┘èÏ»┘ê┘è */
+         }
+       }
+       if (!cancelled) setStatus({ connected: false, seated: false, joining: false });
+     };
+ 
+     void attempt();
+     return () => {
+       cancelled = true;
+     };
+   }, [code, net, applyState]);
+ 
+   // Ïº┘ä┘ç┘êÏ│Ï¬ Ï¿┘èÏ¬┘å┘é┘ä ┘à┘å Ïº┘äÏ▒Ïª┘èÏ│┘èÏ® ┘äÏÁ┘üÏ¡Ï® Ïº┘äÏú┘êÏÂÏ® ┘êÏº┘äÏºÏ¬ÏÁÏº┘ä ┘àÏ╣Ïº┘ç ÔÇö ┘äÏºÏ▓┘à Ï¬Ï╣Ï¿ÏªÏ® Ïº┘äÏ¡Ïº┘äÏ®
+   // ┘ü┘êÏ▒┘ïÏº Ï¿Ïº┘ä┘Ç sync Ï¿Ï»┘ä Ï┤ÏºÏ┤Ï® "ÏºÏ»Ï«┘ä Ïº┘äÏú┘êÏÂÏ®" Ïº┘ä┘ä┘è Ï¿Ï¬┘çÏ»┘à ÏºÏ¬ÏÁÏº┘ä Ïº┘ä┘ç┘êÏ│Ï¬ ┘å┘üÏ│┘ç.
+   useEffect(() => {
+     if (!net) return;
+-    void sync();
++    const timer = window.setTimeout(() => void sync(), 0);
++    return () => window.clearTimeout(timer);
+   }, [net, sync]);
+ 
+   const teardownCurrentNet = useCallback(() => {
+     const current = getRoomNet();
+     if (current) {
+       try {
+         current.destroy();
+       } catch {
+         /* already dead */
+       }
+     }
+     setRoomNet(null);
+     setNet(null);
+   }, []);
+ 
+   // ÏÁÏºÏ¡Ï¿ Ïº┘äÏú┘êÏÂÏ® Ï¿┘èÏ¿┘é┘ë Ïº┘ä┘ç┘êÏ│Ï¬ Ï¬┘ä┘éÏºÏª┘è┘ïÏº ÔÇö Ïº┘äÏ¿┘èÏ▒ Ï¿Ï¬ÏºÏ╣┘ç ID Ï¿Ï¬ÏºÏ╣┘ç = ┘â┘êÏ» Ïº┘äÏú┘êÏÂÏ®.
+   const openHostedRoom = useCallback(
+     async (name: string): Promise<string> => {
+       teardownCurrentNet();
+       try {
+diff --git a/client/src/hooks/useVoiceChat.ts b/client/src/hooks/useVoiceChat.ts
+index 8cf3ecb..8a92724 100644
+--- a/client/src/hooks/useVoiceChat.ts
++++ b/client/src/hooks/useVoiceChat.ts
+@@ -19,40 +19,43 @@ export interface VoiceController {
+   error: string | null;
+   join: () => Promise<void>;
+   leave: () => void;
+   toggleMic: () => void;
+ }
+ 
+ export function useVoiceChat(
+   state: GameState | null,
+   policy: VoicePolicy | null,
+ ): VoiceController {
+   const [joined, setJoined] = useState(false);
+   const [status, setStatus] = useState<VoiceStatus>('idle');
+   const [micOn, setMicOn] = useState(true);
+   const [peerIds, setPeerIds] = useState<string[]>([]);
+   const [error, setError] = useState<string | null>(null);
+ 
+   const pcsRef = useRef(new Map<string, RTCPeerConnection>());
+   const audioElsRef = useRef(new Map<string, HTMLAudioElement>());
+   const streamRef = useRef<MediaStream | null>(null);
+   const iceBuffersRef = useRef(new Map<string, RTCIceCandidateInit[]>());
++  const pendingSignalsRef = useRef(new Map<string, RTCSessionDescriptionInit[]>());
++  const pendingIceRef = useRef(new Map<string, RTCIceCandidateInit[]>());
++  const unlockAudioRef = useRef<(() => void) | null>(null);
+   const joinedRef = useRef(false);
+   const micOnRef = useRef(true);
+   // ┘àÏ╣Ï▒┘ü┘è ┘ü┘è Ï┤Ï¿┘âÏ® Ïº┘äÏÁ┘êÏ¬ (socketId) ÔÇö Ï¿┘èÏ¼┘è ┘àÏ╣ Ï▒Ï» voice:join
+   const myIdRef = useRef<string | null>(null);
+ 
+   // --- Talking detection (WebRTC analysers) ---
+   interface AnalyserEntry {
+     analyser: AnalyserNode;
+     data: Uint8Array<ArrayBuffer>;
+     src: MediaStreamAudioSourceNode;
+   }
+   const analysersRef = useRef(new Map<string, AnalyserEntry>());
+   const audioCtxRef = useRef<AudioContext | null>(null);
+   const speakingRef = useRef(new Set<string>());
+   const [speakingIds, setSpeakingIds] = useState<string[]>([]);
+ 
+   const attachAnalyser = useCallback((peerId: string, stream: MediaStream) => {
+     try {
+       if (!audioCtxRef.current) {
+         const Ctor =
+@@ -93,56 +96,62 @@ export function useVoiceChat(
+     try {
+       entry.src.disconnect();
+     } catch {
+       /* ignore */
+     }
+     analysersRef.current.delete(peerId);
+     speakingRef.current.delete(peerId);
+     setSpeakingIds((current) => current.filter((id) => id !== peerId));
+   }, []);
+ 
+   const syncPeers = useCallback(() => {
+     setPeerIds([...pcsRef.current.keys()]);
+   }, []);
+ 
+   const attachAudio = useCallback(
+     (peerId: string, stream: MediaStream) => {
+       let element = audioElsRef.current.get(peerId);
+       if (!element) {
+         element = document.createElement('audio');
+         element.autoplay = true;
++        element.setAttribute('playsinline', '');
++        element.muted = false;
++        element.volume = 1;
+         element.dataset.peer = peerId;
+         document.body.appendChild(element);
+         audioElsRef.current.set(peerId, element);
+       }
+       element.srcObject = stream;
+       void element.play().catch(() => {
+-        // Ïº┘ä┘à┘êÏ¿Ïº┘è┘ä Ï¿┘èÏ¡Ï¿Ï¿ Ïº┘äÏ¬Ï┤Ï║┘è┘ä Ïº┘äÏ¬┘ä┘éÏºÏª┘è ÔÇö Ïú┘ê┘ä ┘ä┘àÏ│Ï®/ÏÂÏ║ÏÀÏ® Ï¿Ï¬Ï¡Ïº┘ê┘ä Ï¬┘üÏ¬Ï¡ Ïº┘äÏÁ┘êÏ¬ Ï¬Ïº┘å┘è
++        // Ïº┘ä┘à┘êÏ¿Ïº┘è┘ä Ï¿┘èÏ¡Ï¿Ï¿ Ïº┘äÏ¬Ï┤Ï║┘è┘ä Ïº┘äÏ¬┘ä┘éÏºÏª┘è ÔÇö Ï│Ï¼┘ä listener ┘êÏºÏ¡Ï» ┘ü┘éÏÀ ┘ê┘åÏÂ┘ü┘ç Ï¿Ï╣Ï» Ïú┘ê┘ä ┘àÏ¡Ïº┘ê┘äÏ®.
++        if (unlockAudioRef.current) return;
+         const unlock = () => {
++          unlockAudioRef.current = null;
++          window.removeEventListener('pointerdown', unlock);
++          window.removeEventListener('keydown', unlock);
+           for (const el of audioElsRef.current.values()) {
+             void el.play().catch(() => undefined);
+           }
+-          window.removeEventListener('pointerdown', unlock);
+-          window.removeEventListener('keydown', unlock);
+         };
+-        window.addEventListener('pointerdown', unlock, { once: false });
+-        window.addEventListener('keydown', unlock, { once: false });
++        unlockAudioRef.current = unlock;
++        window.addEventListener('pointerdown', unlock);
++        window.addEventListener('keydown', unlock);
+       });
+       attachAnalyser(peerId, stream);
+     },
+     [attachAnalyser],
+   );
+ 
+   const teardownPeer = useCallback(
+     (peerId: string) => {
+       const pc = pcsRef.current.get(peerId);
+       if (pc) {
+         pc.onicecandidate = null;
+         pc.ontrack = null;
+         pc.onconnectionstatechange = null;
+         pc.close();
+         pcsRef.current.delete(peerId);
+       }
+       iceBuffersRef.current.delete(peerId);
+       detachAnalyser(peerId);
+       const el = audioElsRef.current.get(peerId);
+       if (el) {
+@@ -158,210 +167,259 @@ export function useVoiceChat(
+   const ensurePeer = useCallback(
+     async (peerId: string): Promise<RTCPeerConnection> => {
+       const existing = pcsRef.current.get(peerId);
+       if (existing) return existing;
+ 
+       const pc = new RTCPeerConnection({ iceServers: await loadIceServers() });
+       pcsRef.current.set(peerId, pc);
+ 
+       const local = streamRef.current;
+       if (local) {
+         for (const track of local.getTracks()) pc.addTrack(track, local);
+       }
+ 
+       pc.onicecandidate = (event) => {
+         if (event.candidate && joinedRef.current) {
+           getRoomNet()?.sendVoice('voice:ice', peerId, event.candidate.toJSON());
+         }
+       };
+ 
+       pc.ontrack = (event) => {
+-        const [stream] = event.streams;
+-        if (stream) attachAudio(peerId, stream);
++        const stream = event.streams[0] ?? new MediaStream([event.track]);
++        attachAudio(peerId, stream);
+       };
+ 
+       pc.onconnectionstatechange = () => {
+         // 'disconnected' ┘à┘à┘â┘å ┘èÏ▒Ï¼Ï╣ ┘ä┘êÏ¡Ï»┘ç (ICE Ï¿┘èÏ╣┘èÏ» Ïº┘äÏ¬┘êÏÁ┘è┘ä) ÔÇö Ï¿┘å┘çÏ»┘æ┘à Ï¿Ï│ ┘ä┘àÏº ┘è┘üÏ┤┘ä ┘üÏ╣┘ä┘ïÏº
+         if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+           teardownPeer(peerId);
+         }
+       };
+ 
+       syncPeers();
+       return pc;
+     },
+     [attachAudio, syncPeers, teardownPeer],
+   );
+ 
+   const offerTo = useCallback(
+     async (peerId: string) => {
+       try {
+         const pc = await ensurePeer(peerId);
+         const offer = await pc.createOffer();
+         await pc.setLocalDescription(offer);
+         getRoomNet()?.sendVoice('voice:signal', peerId, {
+           type: offer.type,
+           sdp: offer.sdp,
+         });
+       } catch {
+         teardownPeer(peerId);
+       }
+     },
+     [ensurePeer, teardownPeer],
+   );
+ 
++  const handleSignal = useCallback(
++    async (from: string, data: RTCSessionDescriptionInit, net = getRoomNet()) => {
++      if (!net) return;
++      const pc = await ensurePeer(from);
++      if (data.type === 'offer' && pc.signalingState === 'have-local-offer') {
++        const polite = (myIdRef.current ?? '') < from;
++        if (!polite) return;
++        await pc.setLocalDescription({ type: 'rollback' }).catch(() => undefined);
++      }
++      await pc.setRemoteDescription(data);
++      const buffered = iceBuffersRef.current.get(from) ?? [];
++      iceBuffersRef.current.set(from, []);
++      for (const candidate of buffered) {
++        await pc.addIceCandidate(candidate).catch(() => undefined);
++      }
++      if (data.type === 'offer') {
++        const answer = await pc.createAnswer();
++        await pc.setLocalDescription(answer);
++        net.sendVoice('voice:signal', from, { type: answer.type, sdp: answer.sdp });
++      }
++    },
++    [ensurePeer],
++  );
++
+   const join = useCallback(async () => {
+     if (joinedRef.current || status === 'connecting') return;
+     setStatus('connecting');
+     setError(null);
+ 
+     try {
+       const net = getRoomNet();
+       if (!net) throw new Error('┘à┘ü┘èÏ┤ ÏºÏ¬ÏÁÏº┘ä Ï¿Ïº┘äÏú┘êÏÂÏ®');
+       const stream = await navigator.mediaDevices.getUserMedia({
+         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+         video: false,
+       });
+       streamRef.current = stream;
+       attachAnalyser('__self__', stream);
+ 
+       const seat = (await net.request('voice:join')) as { peers: string[]; you: string };
+       myIdRef.current = seat.you;
+       joinedRef.current = true;
+       setJoined(true);
+ 
++      for (const [peerId, candidates] of pendingIceRef.current) {
++        iceBuffersRef.current.set(peerId, [
++          ...(iceBuffersRef.current.get(peerId) ?? []),
++          ...candidates,
++        ]);
++      }
++      pendingIceRef.current.clear();
++      const pendingSignals = [...pendingSignalsRef.current.entries()];
++      pendingSignalsRef.current.clear();
++      for (const [from, signals] of pendingSignals) {
++        for (const data of signals) {
++          await handleSignal(from, data, net);
++        }
++      }
++
+       for (const peerId of seat.peers) {
+-        await offerTo(peerId);
++        if (!pcsRef.current.has(peerId)) await offerTo(peerId);
+       }
+       setStatus('live');
+     } catch (err) {
+       teardownAll(pcsRef, audioElsRef, streamRef, iceBuffersRef);
+       detachAnalyser('__self__');
+       joinedRef.current = false;
+       setJoined(false);
+       setStatus('error');
+       setError(
+         err instanceof DOMException && err.name === 'NotAllowedError'
+           ? '┘àÏ│┘à┘êÏ¡Ï┤ Ï¿Ïº┘ä┘àÏº┘è┘â ÔÇö ÏºÏ»Ï«┘ä ÏÑÏ╣Ï»ÏºÏ»ÏºÏ¬ Ïº┘ä┘àÏ¬ÏÁ┘üÏ¡ ┘êÏºÏ│┘àÏ¡ Ï¿Ïº┘ä┘à┘è┘âÏ▒┘ê┘ü┘ê┘å'
+           : err instanceof Error
+             ? err.message
+             : '┘à┘éÏ»Ï▒┘åÏºÏ┤ ┘å┘üÏ¬Ï¡ Ïº┘äÏÁ┘êÏ¬',
+       );
+     }
+-  }, [attachAnalyser, detachAnalyser, offerTo, status]);
++  }, [attachAnalyser, detachAnalyser, handleSignal, offerTo, status]);
+ 
+   const leave = useCallback(() => {
+     if (!joinedRef.current) return;
+     void getRoomNet()
+       ?.request('voice:leave')
+       .catch(() => undefined);
++    const unlock = unlockAudioRef.current;
++    if (unlock) {
++      window.removeEventListener('pointerdown', unlock);
++      window.removeEventListener('keydown', unlock);
++      unlockAudioRef.current = null;
++    }
+     teardownAll(pcsRef, audioElsRef, streamRef, iceBuffersRef);
+     joinedRef.current = false;
+     setJoined(false);
+     setPeerIds([]);
+     setStatus('idle');
+   }, []);
+ 
+   useEffect(() => {
+     const net = getRoomNet();
+     if (!net) return;
+ 
+     // Ïº┘ä┘à┘åÏÂ┘à Ïº┘äÏ¼Ï»┘èÏ» ┘ç┘ê Ïº┘ä┘ä┘è Ï¿┘è┘üÏ¬Ï¡ Ïº┘äÏºÏ¬ÏÁÏº┘äÏºÏ¬ (Ï¿┘è┘êÏÁ┘ä ┘àÏ╣ Ï▒Ï» voice:join) ÔÇö
+     // Ïº┘ä┘à┘êÏ¼┘êÏ»┘è┘å ┘àÏº┘è┘éÏ»┘à┘êÏ┤ offers Ï╣Ï┤Ïº┘å ┘àÏº┘èÏ¬ÏÁÏºÏ»┘àÏ┤ Ï╣Ï▒ÏÂ┘è┘å ┘ê┘èÏ¬Ï»┘àÏ▒┘êÏº (glare)
+ 
+     const onSignal = async ({ from, data }: { from: string; data: RTCSessionDescriptionInit }) => {
+-      if (!joinedRef.current) return;
++      if (!joinedRef.current) {
++        const pending = pendingSignalsRef.current.get(from) ?? [];
++        pending.push(data);
++        pendingSignalsRef.current.set(from, pending);
++        return;
++      }
+       try {
+-        const pc = await ensurePeer(from);
+-        // Ï¬Ï╣ÏºÏ▒ÏÂ Ï╣Ï▒┘êÏÂ (ÏºÏ¬┘å┘è┘å Ï»Ï«┘ä┘ê ┘å┘üÏ│ Ïº┘ä┘äÏ¡Ï©Ï®): Ïº┘äÏúÏÁÏ║Ï▒ ┘àÏ╣Ï▒┘ü┘ïÏº Ï¿┘èÏ▒Ï¼Ï╣ Ï¿Ï╣Ï▒ÏÂ┘ç
+-        // ┘ê┘è┘éÏ¿┘ä Ïº┘ä┘êÏºÏ▒Ï»Ïî ┘êÏº┘äÏú┘âÏ¿Ï▒ Ï¿┘èÏ¬Ï¼Ïº┘ç┘ä┘ç ÔÇö Ïº┘ä┘åÏ¬┘èÏ¼Ï® Ï╣Ï▒ÏÂ ┘êÏºÏ¡Ï» Ï¿Ï│ ┘è┘âÏ│Ï¿
+-        if (data.type === 'offer' && pc.signalingState === 'have-local-offer') {
+-          const polite = (myIdRef.current ?? '') < from;
+-          if (!polite) return;
+-          await pc.setLocalDescription({ type: 'rollback' }).catch(() => undefined);
+-        }
+-        await pc.setRemoteDescription(data);
+-        const buffered = iceBuffersRef.current.get(from) ?? [];
+-        iceBuffersRef.current.set(from, []);
+-        for (const candidate of buffered) {
+-          await pc.addIceCandidate(candidate).catch(() => undefined);
+-        }
+-        if (data.type === 'offer') {
+-          const answer = await pc.createAnswer();
+-          await pc.setLocalDescription(answer);
+-          net.sendVoice('voice:signal', from, { type: answer.type, sdp: answer.sdp });
+-        }
++        await handleSignal(from, data, net);
+       } catch {
+         // ┘êÏÁ┘ü ┘àÏ¬ÏúÏ«Ï▒/Ï¬Ïº┘ä┘ü ┘àÏ┤ ┘å┘çÏº┘èÏ® Ïº┘äÏ╣Ïº┘ä┘à ÔÇö ┘ä┘ê Ïº┘äÏºÏ¬ÏÁÏº┘ä ┘üÏ╣┘ä┘ïÏº ┘à┘âÏ│┘êÏ▒
+         // connectionState ┘ç┘è┘êÏÁ┘ä failed ┘ê┘ç┘èÏ¬┘åÏÂ┘ü ┘ä┘êÏ¡Ï»┘ç
+       }
+     };
+ 
+-    const onIce = ({ from, candidate }: { from: string; candidate: RTCIceCandidateInit }) => {
+-      if (!joinedRef.current) return;
++    const onIce = ({ from, data }: { from: string; data: RTCIceCandidateInit }) => {
++      if (!data?.candidate) return;
++      if (!joinedRef.current) {
++        const pending = pendingIceRef.current.get(from) ?? [];
++        pending.push(data);
++        pendingIceRef.current.set(from, pending);
++        return;
++      }
+       const pc = pcsRef.current.get(from);
+       if (pc?.remoteDescription) {
+-        void pc.addIceCandidate(candidate).catch(() => undefined);
++        void pc.addIceCandidate(data).catch(() => undefined);
+       } else {
+         const buffer = iceBuffersRef.current.get(from) ?? [];
+-        buffer.push(candidate);
++        buffer.push(data);
+         iceBuffersRef.current.set(from, buffer);
+       }
+     };
+ 
+     const onPeerLeft = ({ socketId }: { socketId: string }) => {
+       teardownPeer(socketId);
+     };
+ 
+     net.on('voice:signal', onSignal);
+     net.on('voice:ice', onIce);
+     net.on('voice:peer-left', onPeerLeft);
+ 
+     return () => {
+       net.off('voice:signal', onSignal);
+       net.off('voice:ice', onIce);
+       net.off('voice:peer-left', onPeerLeft);
+     };
+-  }, [ensurePeer, teardownPeer]);
++  }, [handleSignal, teardownPeer]);
++
++  const effectivePolicy = policy ?? (state?.phase === 'LOBBY' ? lobbyPolicy(state) : null);
+ 
+   useEffect(() => {
+     for (const [peerId, element] of audioElsRef.current.entries()) {
+-      const audible = Boolean(policy?.canHear && policy.audible.includes(peerId));
++      const audible = Boolean(
++        effectivePolicy?.canHear && effectivePolicy.audible.includes(peerId),
++      );
+       element.muted = !audible;
+     }
+ 
+     const track = streamRef.current?.getAudioTracks()[0];
+-    if (track) track.enabled = Boolean(policy?.canSpeak && micOnRef.current);
+-  }, [policy, peerIds]);
++    if (track) track.enabled = Boolean(effectivePolicy?.canSpeak && micOnRef.current);
++  }, [effectivePolicy, peerIds]);
+ 
+   useEffect(() => {
++    micOnRef.current = micOn;
+     const track = streamRef.current?.getAudioTracks()[0];
+-    if (track) track.enabled = Boolean(policy?.canSpeak && micOn);
+-  }, [micOn, policy]);
++    if (track) track.enabled = Boolean(effectivePolicy?.canSpeak && micOn);
++  }, [effectivePolicy, micOn]);
+ 
+   useEffect(() => {
+     const analysers = analysersRef.current;
+     const audioCtx = audioCtxRef.current;
+     return () => {
+       void getRoomNet()
+         ?.request('voice:leave')
+         .catch(() => undefined);
++      const unlock = unlockAudioRef.current;
++      if (unlock) {
++        window.removeEventListener('pointerdown', unlock);
++        window.removeEventListener('keydown', unlock);
++        unlockAudioRef.current = null;
++      }
+       teardownAll(pcsRef, audioElsRef, streamRef, iceBuffersRef);
+       for (const [peerId, entry] of analysers.entries()) {
+         try {
+           entry.src.disconnect();
+         } catch {
+           /* ignore */
+         }
+         speakingRef.current.delete(peerId);
+       }
+       analysers.clear();
+       setSpeakingIds([]);
+       if (audioCtx) {
+         void audioCtx.close().catch(() => undefined);
+         audioCtxRef.current = null;
+       }
+       joinedRef.current = false;
+     };
+   }, []);
+ 
+   useEffect(() => {
+@@ -371,68 +429,82 @@ export function useVoiceChat(
+       for (const [peerId, entry] of analysersRef.current.entries()) {
+         entry.analyser.getByteTimeDomainData(entry.data);
+         let peak = 0;
+         for (let i = 0; i < entry.data.length; i += 1) {
+           peak = Math.max(peak, Math.abs(entry.data[i] - 128));
+         }
+         if (peak > 6) next.add(peerId);
+       }
+       const prev = speakingRef.current;
+       const changed =
+         prev.size !== next.size || [...next].some((id) => !prev.has(id));
+       if (changed) {
+         speakingRef.current = next;
+         setSpeakingIds([...next]);
+       }
+     };
+     const poll = window.setInterval(tick, 160);
+     return () => window.clearInterval(poll);
+   }, [joined]);
+ 
+-  const micLocked = !policy?.canSpeak;
+-  const channelLabel = channelLabelFor(policy, state?.you?.isAlive ?? true);
++  const micLocked = effectivePolicy ? !effectivePolicy.canSpeak : false;
++  const channelLabel = channelLabelFor(effectivePolicy, state?.you?.isAlive ?? true);
+   const lockReason = micLocked
+-    ? policy?.channel === 'MUTED'
++    ? effectivePolicy?.channel === 'MUTED'
+       ? 'Ï│┘âÏ¬ Ïº┘ä┘ä┘è┘ä ÔÇö ┘â┘ä Ïº┘äÏ«ÏÀ┘êÏÀ ┘à┘é┘ü┘ê┘äÏ® ┘äÏ¡Ï» Ïº┘ä┘üÏ¼Ï▒'
+-      : policy?.channel === 'DEAD'
++      : effectivePolicy?.channel === 'DEAD'
+         ? 'ÏÑ┘åÏ¬ ┘àÏ¬┘üÏ▒Ï¼ Ï¿Ï│.. Ï¿Ï¬Ï│┘àÏ╣ ┘ê┘àÏ┤ Ï¿Ï¬Ï¬Ï│┘àÏ╣'
+         : 'Ïº┘ä┘àÏº┘ü┘èÏº Ï│┘â┘æÏ¬┘â'
+     : null;
+ 
+   return {
+     joined,
+     status,
+     micOn,
+     micLocked,
+     lockReason,
+     channelLabel,
+     peerIds,
+     speakingIds,
+     error,
+     join,
+     leave,
+     toggleMic: () => {
+       if (!micLocked) setMicOn((value) => !value);
+     },
+   };
+ }
+ 
++function lobbyPolicy(state: GameState): VoicePolicy {
++  const selfId = state.you?.id;
++  return {
++    channel: 'LOBBY',
++    canSpeak: true,
++    canHear: true,
++    audible: state.players
++      .filter((player) => player.id !== selfId && player.isConnected && player.sid)
++      .map((player) => player.sid as string),
++    phase: 'LOBBY',
++    round: state.round,
++  };
++}
++
+ function channelLabelFor(policy: VoicePolicy | null, isAlive: boolean): string {
+   if (!policy) return 'Ïº┘äÏÁ┘êÏ¬';
+   switch (policy.channel) {
+     case 'MAFIA':
+       return 'Ï«ÏÀ Ïº┘äÏ╣┘è┘äÏ®';
+     case 'TOWN':
+       return policy.canSpeak ? '┘à┘è┘â Ïº┘äÏú┘çÏº┘ä┘è' : 'Ïº┘äÏú┘çÏº┘ä┘è ÔÇö Ï│┘àÏ╣ Ï¿Ï│';
+     case 'DEAD':
+       return isAlive ? 'Ïº┘äÏÁ┘êÏ¬' : '┘éÏºÏ╣Ï® Ïº┘ä┘àÏ¬┘üÏ▒Ï¼┘è┘å';
+     case 'LOBBY':
+       return 'ÏÁ┘êÏ¬ Ïº┘äÏú┘êÏÂÏ®';
+     default:
+       return 'Ï│┘âÏºÏ¬ Ïº┘ä┘ä┘è┘ä';
+   }
+ }
+ 
+ function teardownAll(
+   pcsRef: React.RefObject<Map<string, RTCPeerConnection>>,
+   audioElsRef: React.RefObject<Map<string, HTMLAudioElement>>,
+   streamRef: React.RefObject<MediaStream | null>,
+diff --git a/client/src/lib/engine/GameRoom.ts b/client/src/lib/engine/GameRoom.ts
+index 74cb786..8f8af18 100644
+--- a/client/src/lib/engine/GameRoom.ts
++++ b/client/src/lib/engine/GameRoom.ts
+@@ -538,40 +538,41 @@ export class GameRoom {
+         id: player.id,
+         name: player.name,
+         isHost: player.isHost,
+         isBot: Boolean(player.isBot),
+         isConnected: player.isConnected,
+         isAlive: player.isAlive,
+         isSilenced: player.isSilenced,
+         micEnabled: this._micEnabled(player),
+         hasRevealed: player.hasRevealed,
+         voteWeight: voteWeightOf(player),
+         sid: player.socketId ?? null,
+       })),
+     };
+   }
+ 
+   privateState(playerId: string) {
+     const player = this._requirePlayer(playerId);
+     const base = this.publicState();
+     return {
+       ...base,
++      voicePolicy: this._buildVoicePolicy(player),
+       you: {
+         id: player.id,
+         token: player.token,
+         name: player.name,
+         isHost: player.isHost,
+         role: player.role,
+         team: player.team,
+         isAlive: player.isAlive,
+         isSilenced: player.isSilenced,
+         hasRevealed: player.hasRevealed,
+         bulletsLeft: player.bulletsLeft,
+         ability: NIGHT_ABILITIES[player.role as keyof typeof NIGHT_ABILITIES] ?? null,
+         partners: this._partnersOf(player),
+         hasSubmittedNightAction: this.nightActions.has(player.id),
+         voteTarget: this.votes.get(player.id) ?? null,
+       },
+     };
+   }
+ 
+   broadcastUpdate() {
+diff --git a/client/src/lib/types.ts b/client/src/lib/types.ts
+index 5d6cea5..b946df8 100644
+--- a/client/src/lib/types.ts
++++ b/client/src/lib/types.ts
+@@ -93,40 +93,41 @@ export interface RoomResult {
+ export interface GameState {
+   code: string;
+   phase: Phase;
+   round: number;
+   deadline: number | null;
+   awaitingRevenge: { source: 'NIGHT' | 'VOTE' } | null;
+   lastWords?: { playerId: string } | null;
+   defense?: { playerId: string } | null;
+   eventLog?: LogEvent[];
+   nightReport?: { victim: string | null; silenced: string | null } | null;
+   elimination?: { playerId: string; name: string; role: Role } | null;
+   nightResults?: { victimName: string | null; silencedName: string | null } | null;
+   votesCast: number;
+   votesExpected: number;
+   voteLog?: { voterId: string; targetId: string }[];
+   /** ÏÑÏ¼┘àÏº┘ä┘è Ïº┘äÏúÏÁ┘êÏºÏ¬ Ïº┘ä┘ä┘è ÏºÏ¬ÏÁÏ¿Ï¬ Ï╣┘ä┘ë ┘â┘ä ┘äÏºÏ╣Ï¿ ÏÀ┘ê┘ä Ïº┘ä┘àÏºÏ¬Ï┤ (Ï┤ÏºÏ┤Ï® Ïº┘ä┘åÏÁÏ▒) */
+   voteTally?: Record<string, number>;
+   rematchVotes?: string[];
+   result: RoomResult | null;
+   players: PublicPlayer[];
++  voicePolicy?: VoicePolicy;
+   you?: YouState;
+ }
+ 
+ export interface TargetOption {
+   id: string;
+   name: string;
+ }
+ 
+ export interface ActionRequest {
+   kind: 'NIGHT_ABILITY';
+   ability: Ability;
+   allowsSkip: boolean;
+   options: TargetOption[];
+   deadline: number | null;
+ }
+ 
+ export interface RevengePrompt {
+   source: 'NIGHT' | 'VOTE';
+   options: TargetOption[];
+   deadline: number | null;

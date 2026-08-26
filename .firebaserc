@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "mafia-b1d7e"
-  }
+  },
+  "targets": {
+    "mafia-b1d7e": {
+      "hosting": {
+        "haret": [
+          "haret-almafia"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

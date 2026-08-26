@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="gPlate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f7e08a"/>
+      <stop offset=".5" stop-color="#d4af37"/>
+      <stop offset="1" stop-color="#8f6b14"/>
+    </linearGradient>
+    <radialGradient id="rays" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ffe98f" stop-opacity=".8"/>
+      <stop offset="1" stop-color="#ffe98f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- هالة -->
+  <circle cx="128" cy="140" r="120" fill="url(#rays)"/>
+  <!-- صندوق ذهبي: صندوق كنز الدون -->
+  <rect x="36" y="104" width="184" height="118" rx="12" fill="url(#gPlate)" stroke="#5c440e" stroke-width="5"/>
+  <!-- شرائح عمودية -->
+  <g stroke="#8f6b14" stroke-width="3">
+    <path d="M97 106 V222"/><path d="M159 106 V222"/>
+  </g>
+  <!-- غطا مقوس -->
+  <path d="M36 104 Q36 52 90 48 L166 48 Q220 52 220 104 Z" fill="url(#gPlate)" stroke="#5c440e" stroke-width="5"/>
+  <path d="M52 104 Q54 66 96 62" fill="none" stroke="#fff2b8" stroke-width="5" opacity=".6"/>
+  <!-- قفل كبير -->
+  <rect x="108" y="112" width="40" height="34" rx="6" fill="#f7e08a" stroke="#5c440e" stroke-width="4"/>
+  <path d="M116 112 v-12 a12 12 0 0 1 24 0 v12" fill="none" stroke="#5c440e" stroke-width="5"/>
+  <circle cx="128" cy="128" r="5" fill="#5c440e"/>
+  <!-- جواهر متلألئة حوالين -->
+  <g fill="#fff2b8">
+    <path d="M40 60 l4 8 8 4 -8 4 -4 8 -4 -8 -8 -4 8 -4 z" opacity=".9"/>
+    <path d="M216 66 l3 6 6 3 -6 3 -3 6 -3 -6 -6 -3 6 -3 z" opacity=".8"/>
+    <path d="M226 160 l3 6 6 3 -6 3 -3 6 -3 -6 -6 -3 6 -3 z" opacity=".7"/>
+    <path d="M28 168 l2.5 5 5 2.5 -5 2.5 -2.5 5 -2.5 -5 -5 -2.5 5 -2.5 z" opacity=".7"/>
+  </g>
+</svg>

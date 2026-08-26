@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 768">
+  <defs>
+    <linearGradient id="fireBand" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#8c1a05"/>
+      <stop offset=".45" stop-color="#e6470b"/>
+      <stop offset=".75" stop-color="#ff8c1a"/>
+      <stop offset="1" stop-color="#ffd23c"/>
+    </linearGradient>
+    <linearGradient id="flame" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#e6470b"/>
+      <stop offset=".6" stop-color="#ff8c1a"/>
+      <stop offset="1" stop-color="#ffe66b"/>
+    </linearGradient>
+    <filter id="heat" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- إطار الجحيم: حدود ملتهبة وألسنة لهب بتلعق من تحت لفوق -->
+  <rect x="16" y="16" width="480" height="736" rx="54" fill="none" stroke="url(#fireBand)" stroke-width="30" filter="url(#heat)"/>
+  <rect x="42" y="42" width="428" height="684" rx="36" fill="none" stroke="#ffd23c" stroke-width="2.5" opacity=".55"/>
+  <!-- ألسنة لهب على الحد العلوي -->
+  <g fill="url(#flame)" filter="url(#heat)">
+    <path d="M70 34 q10 -18 4 -34 q18 10 14 34 q-4 12 -14 12 q-8 0 -4 -12 z"/>
+    <path d="M160 30 q14 -26 6 -44 q24 16 16 44 q-4 14 -14 14 q-10 0 -8 -14 z"/>
+    <path d="M262 34 q8 -14 2 -26 q14 8 10 26 q-3 10 -10 10 q-7 0 -2 -10 z"/>
+    <path d="M348 30 q12 -22 4 -38 q20 12 12 38 q-3 12 -11 12 q-9 0 -5 -12 z"/>
+    <path d="M438 34 q9 -16 3 -30 q16 10 12 30 q-3 11 -11 11 q-7 0 -4 -11 z"/>
+  </g>
+  <!-- جمرات متطايرة على الجانبين -->
+  <g fill="#ffd23c" filter="url(#heat)">
+    <circle cx="31" cy="200" r="4"/>
+    <circle cx="481" cy="260" r="5"/>
+    <circle cx="31" cy="420" r="3.5"/>
+    <circle cx="481" cy="540" r="4"/>
+    <circle cx="31" cy="620" r="4.5"/>
+  </g>
+  <!-- شعلة مركزية تحت -->
+  <g transform="translate(256 724)" filter="url(#heat)">
+    <path d="M0 -26 q10 10 6 20 q-2 8 -6 8 q-4 0 -6 -8 q-4 -10 6 -20 z" fill="url(#flame)"/>
+  </g>
+</svg>

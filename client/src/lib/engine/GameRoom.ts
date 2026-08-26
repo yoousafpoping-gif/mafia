@@ -16,6 +16,15 @@ import {
 import { resolveNightActions, type NightOutcome } from './nightResolution';
 import { resolveTally, tallyVotes, voteWeightOf } from './voteResolution';
 import {
+  defaultRoomSettings,
+  effectiveMafiaCount,
+  maxMafiaCount,
+  normalizeRoomSettings,
+  validateRoomSettings,
+  type RoomSettings,
+} from './roomSettings';
+import { askBotBrain, type BotBrainChatEntry } from './botBrain';
+import {
   BOT_DICTIONARY,
   BOT_MENTION_ALIASES,
   BOT_REACTION_COOLDOWN_MS,
@@ -30,6 +39,31 @@ export interface RoomBus {
   to(target: string | string[]): { emit(event: string, payload: unknown): void };
 }
 
+const HOST_SOCKET_PLACEHOLDER = '__host__';
+
+/** كوزمتكس اللاعب المجهّزة — بتوصل مع الانضمام وبنثق فيها زي الاسم (عرض فقط) */
+function sanitizeCosmetics(raw: unknown): PlayerCosmetics | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = (value: unknown) =>
+    typeof value === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(value) ? value : null;
+  const source = raw as Record<string, unknown>;
+  const cardFrame = id(source.cardFrame);
+  const title = id(source.title);
+  const emote = id(source.emote);
+  const badges = Array.isArray(source.badges)
+    ? source.badges.map(id).filter((value): value is string => Boolean(value)).slice(0, 12)
+    : [];
+  if (!cardFrame && !title && !emote && badges.length === 0) return null;
+  return { cardFrame: cardFrame ?? 'frame-classic', title, badges, emote };
+}
+
+export interface PlayerCosmetics {
+  cardFrame?: string;
+  title?: string | null;
+  badges?: string[];
+  emote?: string | null;
+}
+
 interface Player {
   id: string;
   token: string;
@@ -38,6 +72,7 @@ interface Player {
   isHost: boolean;
   isBot: boolean;
   isConnected: boolean;
+  cosmetics: PlayerCosmetics | null;
   role: string | null;
   team: string | null;
   isAlive: boolean;
@@ -62,6 +97,40 @@ interface DeathReport {
   name: string;
   role: string | null;
   causes: string[];
+}
+
+export interface GameRoomSnapshot {
+  version: 1;
+  code: string;
+  phase: string;
+  round: number;
+  createdAt: number;
+  lastActivityAt: number;
+  phaseEndsAt: number | null;
+  players: Player[];
+  nightActions: [string, { ability: string; targetId: string | null }][];
+  expectedNightActors: string[];
+  votes: [string, string][];
+  rematchVotes: string[];
+  voteTally: [string, number][];
+  result: GameRoom['result'];
+  eventLog: GameRoom['eventLog'];
+  settings?: RoomSettings;
+  isCustomRoom?: boolean;
+  lastWordsPlayerId: string | null;
+  defensePlayerId: string | null;
+  lastNightDeaths: DeathReport[];
+  pendingNightReport: { victim: string | null; silenced: string | null } | null;
+  botChatHistory: BotBrainChatEntry[];
+  lastBotReactionAt: number;
+  hostId: string;
+  kickedTokens: string[];
+  awaitingRevenge: null | {
+    playerId: string;
+    source: string;
+    excluded: string[];
+    extraDeaths: ExtraDeath[];
+  };
 }
 
 interface PendingRevenge {
@@ -93,16 +162,28 @@ export class GameRoom {
   result: {
     winner: string;
     reason: string;
-    roster: { id: string; name: string; role: string | null; isAlive: boolean; isHost: boolean }[];
+    roster: { id: string; name: string; role: string | null; isAlive: boolean; isHost: boolean; cosmetics?: PlayerCosmetics | null }[];
   } | null;
-  eventLog: { kind: string; text: string; round: number; at: number }[];
+  eventLog: {
+    id: string;
+    kind: string;
+    text: string;
+    round: number;
+    at: number;
+    visibility: 'PUBLIC' | 'OWNER' | 'MAFIA' | 'DEAD';
+    ownerId?: string;
+  }[];
+  settings: RoomSettings;
+  isCustomRoom: boolean;
   lastWordsPlayerId: string | null;
   defensePlayerId: string | null;
   lastNightDeaths: DeathReport[];
   pendingNightReport: { victim: string | null; silenced: string | null } | null;
+  botChatHistory: BotBrainChatEntry[];
   hostId: string;
+  kickedTokens: Set<string>;
 
-  constructor(bus: RoomBus, code: string, host: { name: string; socketId: string }) {
+  constructor(bus: RoomBus, code: string, host: { name: string; socketId: string; cosmetics?: unknown }, isCustomRoom = false) {
     this.bus = bus;
     this.code = code;
     this.phase = PHASES.LOBBY;
@@ -126,14 +207,134 @@ export class GameRoom {
     this.defensePlayerId = null;
     this.lastNightDeaths = [];
     this.pendingNightReport = null;
+    this.botChatHistory = [];
+    this.kickedTokens = new Set();
+    this.settings = defaultRoomSettings();
+    this.isCustomRoom = isCustomRoom;
 
-    const hostPlayer = this._createPlayer(host.name, host.socketId);
+    const hostPlayer = this._createPlayer(host.name, host.socketId, sanitizeCosmetics(host.cosmetics));
     hostPlayer.isHost = true;
     this.players.set(hostPlayer.id, hostPlayer);
     this.hostId = hostPlayer.id;
   }
 
-  addPlayer({ name, socketId }: { name: string; socketId: string }): Player {
+  exportSnapshot(): GameRoomSnapshot {
+    return {
+      version: 1,
+      code: this.code,
+      phase: this.phase,
+      round: this.round,
+      createdAt: this.createdAt,
+      lastActivityAt: this.lastActivityAt,
+      phaseEndsAt: this.phaseEndsAt,
+      players: [...this.players.values()].map((player) => ({ ...player })),
+      nightActions: [...this.nightActions.entries()],
+      expectedNightActors: [...this.expectedNightActors],
+      votes: [...this.votes.entries()],
+      rematchVotes: [...this.rematchVotes],
+      voteTally: [...this.voteTally.entries()],
+      result: this.result,
+      eventLog: [...this.eventLog],
+      settings: this.settings,
+      isCustomRoom: this.isCustomRoom,
+      lastWordsPlayerId: this.lastWordsPlayerId,
+      defensePlayerId: this.defensePlayerId,
+      lastNightDeaths: this.lastNightDeaths.map((death) => ({ ...death, causes: [...death.causes] })),
+      pendingNightReport: this.pendingNightReport ? { ...this.pendingNightReport } : null,
+      botChatHistory: this.botChatHistory.map((entry) => ({ ...entry })),
+      lastBotReactionAt: this.lastBotReactionAt,
+      hostId: this.hostId,
+      kickedTokens: [...this.kickedTokens],
+      awaitingRevenge: this.awaitingRevenge
+        ? {
+            playerId: this.awaitingRevenge.playerId,
+            source: this.awaitingRevenge.source,
+            excluded: [...this.awaitingRevenge.excluded],
+            extraDeaths: this.awaitingRevenge.extraDeaths.map((death) => ({ ...death })),
+          }
+        : null,
+    };
+  }
+
+  static restore(bus: RoomBus, snapshot: GameRoomSnapshot): GameRoom {
+    assert(snapshot.version === 1, ErrorCodes.VALIDATION_ERROR, 'Unsupported room snapshot');
+    assert(snapshot.code.length > 0, ErrorCodes.VALIDATION_ERROR, 'Invalid room snapshot');
+    const host = snapshot.players.find((player) => player.id === snapshot.hostId && player.isHost);
+    assert(host, ErrorCodes.VALIDATION_ERROR, 'Host seat is missing from room snapshot');
+
+    const room = new GameRoom(bus, snapshot.code, { name: host.name, socketId: HOST_SOCKET_PLACEHOLDER }, snapshot.isCustomRoom ?? false);
+    room.phase = snapshot.phase;
+    room.round = snapshot.round;
+    room.createdAt = snapshot.createdAt;
+    room.lastActivityAt = snapshot.lastActivityAt;
+    room.phaseEndsAt = snapshot.phaseEndsAt;
+    room.players = new Map(snapshot.players.map((player) => [player.id, {
+      ...player,
+      socketId: player.id === snapshot.hostId ? HOST_SOCKET_PLACEHOLDER : null,
+      isConnected: player.id === snapshot.hostId || player.isBot,
+    }]));
+    room.nightActions = new Map(snapshot.nightActions);
+    room.expectedNightActors = new Set(snapshot.expectedNightActors);
+    room.votes = new Map(snapshot.votes);
+    room.rematchVotes = new Set(snapshot.rematchVotes);
+    room.voteTally = new Map(snapshot.voteTally);
+    room.result = snapshot.result;
+    room.eventLog = [...snapshot.eventLog];
+    room.settings = normalizeRoomSettings(snapshot.settings, snapshot.players.length);
+    room.lastWordsPlayerId = snapshot.lastWordsPlayerId;
+    room.defensePlayerId = snapshot.defensePlayerId;
+    room.lastNightDeaths = snapshot.lastNightDeaths.map((death) => ({ ...death, causes: [...death.causes] }));
+    room.pendingNightReport = snapshot.pendingNightReport ? { ...snapshot.pendingNightReport } : null;
+    room.botChatHistory = snapshot.botChatHistory.map((entry) => ({ ...entry }));
+    room.lastBotReactionAt = snapshot.lastBotReactionAt;
+    room.hostId = snapshot.hostId;
+    room.kickedTokens = new Set(snapshot.kickedTokens);
+    room.awaitingRevenge = snapshot.awaitingRevenge
+      ? room._restoreRevenge(snapshot.awaitingRevenge)
+      : null;
+    room.resumeTimers();
+    return room;
+  }
+
+  private _restoreRevenge(saved: NonNullable<GameRoomSnapshot['awaitingRevenge']>): PendingRevenge {
+    const finish = (extraDeaths: ExtraDeath[]) => {
+      if (saved.source === 'NIGHT') {
+        const outcome = resolveNightActions(this.players, this.nightActions);
+        for (const death of extraDeaths) outcome.addDeath(death.id, death.cause);
+        this._finishNight(outcome);
+      } else {
+        for (const death of extraDeaths) this._applyDeath(death.id, [death.cause]);
+        this.broadcastUpdate();
+        if (!this._checkWin()) this._advanceToNight();
+      }
+    };
+    return {
+      playerId: saved.playerId,
+      source: saved.source,
+      excluded: new Set(saved.excluded),
+      extraDeaths: saved.extraDeaths.map((death) => ({ ...death })),
+      onDone: finish,
+    };
+  }
+
+  resumeTimers() {
+    this._clearTimer();
+    if (this.phase === PHASES.LOBBY || this.phase === PHASES.GAME_OVER) return;
+    const expire = () => {
+      if (this.awaitingRevenge) this.submitRevenge(this.awaitingRevenge.playerId, null);
+      else if (this.phase === PHASES.NIGHT) this._resolveNight();
+      else if (this.phase === PHASES.DAY_DISCUSSION) this._openVoting();
+      else if (this.phase === PHASES.DAY_VOTING) this._resolveVotes();
+      else if (this.phase === PHASES.DEFENSE_STAGE) this._finishDefense();
+      else if (this.phase === PHASES.LAST_WORDS) this._finishLastWords();
+    };
+    const remaining = Math.max(0, (this.phaseEndsAt ?? Date.now()) - Date.now());
+    this.timer = setTimeout(expire, remaining);
+    if (this.phase === PHASES.NIGHT && !this.awaitingRevenge) this._scheduleNightBots();
+    if (this.phase === PHASES.DAY_VOTING) this._scheduleVoteBots();
+  }
+
+  addPlayer({ name, socketId, cosmetics }: { name: string; socketId: string; cosmetics?: unknown }): Player {
     assert(
       this.phase === PHASES.LOBBY,
       ErrorCodes.GAME_IN_PROGRESS,
@@ -151,7 +352,7 @@ export class GameRoom {
     );
     assert(!nameTaken, ErrorCodes.NAME_TAKEN, `"${cleanName}" is already seated in this room`);
 
-    const player = this._createPlayer(cleanName, socketId);
+    const player = this._createPlayer(cleanName, socketId, sanitizeCosmetics(cosmetics));
     if (![...this.players.values()].some((p) => p.isHost)) {
       player.isHost = true;
       this.hostId = player.id;
@@ -162,11 +363,16 @@ export class GameRoom {
     return player;
   }
 
-  reattach({ token, socketId }: { token: string; socketId: string }): Player {
+  reattach({ token, socketId, cosmetics }: { token: string; socketId: string; cosmetics?: unknown }): Player {
     assert(
       typeof token === 'string' && token.length > 0,
       ErrorCodes.VALIDATION_ERROR,
       'A valid rejoin token is required',
+    );
+    assert(
+      !this.kickedTokens.has(token),
+      ErrorCodes.KICKED,
+      'تم طرد هذا المقعد من الأوضة ولا يمكنه الرجوع بنفس الهوية',
     );
     const player = [...this.players.values()].find((candidate) => candidate.token === token);
     assert(player, ErrorCodes.VALIDATION_ERROR, 'No seat in this room matches that rejoin token');
@@ -181,6 +387,9 @@ export class GameRoom {
 
     player.socketId = socketId;
     player.isConnected = true;
+    // الكوزمتكس بتنعش عند الرجوع — اللاعب ممكن يكون جهّز حاجة جديدة
+    const freshCosmetics = sanitizeCosmetics(cosmetics);
+    if (freshCosmetics) player.cosmetics = freshCosmetics;
     const hostAlive = [...this.players.values()].some((p) => p.isHost);
     if (!hostAlive) {
       player.isHost = true;
@@ -203,7 +412,22 @@ export class GameRoom {
     return player;
   }
 
-  handleDisconnect(socketId: string): boolean {
+  kickPlayer(requesterId: string, targetId: string): { socketId: string | null } {
+    const requester = this._requirePlayer(requesterId);
+    assert(requester.isHost, ErrorCodes.HOST_ONLY, 'لصاحب الأوضة بس طرد اللاعبين');
+    assert(this.phase === PHASES.LOBBY, ErrorCodes.PHASE_INVALID, 'الطرد متاح في اللوبي فقط');
+    const target = this._requirePlayer(targetId);
+    assert(!target.isHost, ErrorCodes.ACTION_NOT_ALLOWED, 'مينفعش تطرد صاحب الأوضة');
+
+    const socketId = target.socketId;
+    if (!target.isBot) this.kickedTokens.add(target.token);
+    this.players.delete(target.id);
+    this.touch();
+    this.broadcastUpdate();
+    return { socketId };
+  }
+
+  handleDisconnect(socketId: string, explicitLeave = false): boolean {
     const player = [...this.players.values()].find((p) => p.socketId === socketId);
     if (!player) return false;
 
@@ -211,8 +435,8 @@ export class GameRoom {
     player.isConnected = false;
 
     if (this.phase === PHASES.LOBBY) {
-      // الهوست ميتمسحش أبداً في اللوبي — الموتور كله شغال عنده
-      if (!player.isHost) {
+      // الانقطاع المؤقت يحتفظ بالمقعد والتوكن؛ الخروج الصريح فقط يحرره.
+      if (explicitLeave && !player.isHost) {
         this.players.delete(player.id);
       }
       if (player.id === this.hostId) {
@@ -271,6 +495,17 @@ export class GameRoom {
     const vote = this.voteRematch(playerId, true);
     if ('started' in vote) return { restarted: false, ready: true };
     return { restarted: false, ready: vote.ready };
+  }
+
+  updateSettings(requesterId: string, input: Partial<RoomSettings>) {
+    const requester = this._requirePlayer(requesterId);
+    assert(requester.isHost, ErrorCodes.HOST_ONLY, 'إعدادات الجولة متاحة لصاحب الأوضة فقط');
+    assert(this.isCustomRoom, ErrorCodes.ACTION_NOT_ALLOWED, 'الإعدادات متاحة للغرفة المخصصة فقط');
+    assert(this.phase === PHASES.LOBBY, ErrorCodes.PHASE_INVALID, 'تقدر تغيّر إعدادات الجولة قبل البداية فقط');
+    this.settings = normalizeRoomSettings(input, this.players.size, this.settings);
+    this.touch();
+    this.broadcastUpdate();
+    return this.settings;
   }
 
   startGame(requesterId: string) {
@@ -449,7 +684,11 @@ export class GameRoom {
     this.voteTally.set(targetId, (this.voteTally.get(targetId) ?? 0) + 1);
     this.touch();
     this.broadcastUpdate();
-    this._emitToPlayer(voter, 'action:accepted', { kind: 'VOTE', targetId, weight: voteWeightOf(voter) });
+    this._emitToPlayer(voter, 'action:accepted', {
+      kind: 'VOTE',
+      targetId,
+      weight: voteWeightOf(voter, this.settings.voting.mayorWeight),
+    });
 
     const expected = this._alivePlayers().length;
     this.bus.to(this.code).emit('vote:progress', { cast: this.votes.size, expected });
@@ -466,30 +705,40 @@ export class GameRoom {
     this.bus.to(this.code).emit('reaction:show', { playerId: sender.id, emojiId });
   }
 
-  postChat(senderId: string, rawText: string) {
+  postChat(senderId: string, rawText: string, requestedChannel?: 'PUBLIC' | 'MAFIA' | 'DEAD') {
     const text = sanitizeChatText(rawText, config.chat.maxLength);
     const sender = this._requirePlayer(senderId);
-    const nightFamilyChannel = this.phase === PHASES.NIGHT && sender.isAlive && sender.team === TEAMS.MAFIA;
-    assert(CHAT_PHASES.has(this.phase) || nightFamilyChannel, ErrorCodes.PHASE_INVALID, 'Chat is closed right now');
-    if (this.phase !== PHASES.GAME_OVER && this.phase !== PHASES.LOBBY && !nightFamilyChannel) {
-      assert(sender.isAlive, ErrorCodes.PLAYER_DEAD, 'Ghosts cannot speak to the living');
-    }
-    assert(!sender.isSilenced || this.phase === PHASES.GAME_OVER, ErrorCodes.CHAT_BLOCKED, 'You have been silenced for the day');
+    const channel = requestedChannel ?? (!sender.isAlive ? 'DEAD' : this.phase === PHASES.NIGHT && sender.team === TEAMS.MAFIA ? 'MAFIA' : 'PUBLIC');
 
-    const message = { from: { id: sender.id, name: sender.name }, text, at: Date.now() };
-
-    if (nightFamilyChannel) {
-      const familySockets = [...this.players.values()]
-        .filter((p) => p.isAlive && p.team === TEAMS.MAFIA && p.socketId && p.id !== sender.id)
-        .map((p) => p.socketId)
-        .filter((socketId): socketId is string => Boolean(socketId));
-      if (familySockets.length > 0) this.bus.to(familySockets).emit('chat:message', message);
+    if (channel === 'MAFIA') {
+      assert(this.phase === PHASES.NIGHT, ErrorCodes.PHASE_INVALID, 'قناة المافيا متاحة بالليل فقط');
+      assert(sender.isAlive && sender.team === TEAMS.MAFIA, ErrorCodes.ACTION_NOT_ALLOWED, 'قناة المافيا لأفراد العيلة الأحياء فقط');
+    } else if (channel === 'DEAD') {
+      assert(!sender.isAlive, ErrorCodes.ACTION_NOT_ALLOWED, 'قناة الموتى للمتفرجين بعد الموت فقط');
+      assert(this.phase !== PHASES.LOBBY, ErrorCodes.PHASE_INVALID, 'قناة الموتى غير متاحة في اللوبي');
     } else {
-      this.bus.to(this.code).emit('chat:message', message);
+      assert(CHAT_PHASES.has(this.phase), ErrorCodes.PHASE_INVALID, 'Chat is closed right now');
+      if (this.phase !== PHASES.GAME_OVER && this.phase !== PHASES.LOBBY) {
+        assert(sender.isAlive, ErrorCodes.PLAYER_DEAD, 'Ghosts cannot speak to the living');
+      }
+      assert(!sender.isSilenced || this.phase === PHASES.GAME_OVER, ErrorCodes.CHAT_BLOCKED, 'You have been silenced for the day');
     }
 
-    if (!sender.isBot && !nightFamilyChannel) this._handleBotReaction(text);
-    return { sent: true };
+    const message = { from: { id: sender.id, name: sender.name, cosmetics: sender.cosmetics ?? null }, text, at: Date.now(), channel };
+    if (channel === 'PUBLIC') this._rememberBotChat(sender.name, text);
+
+    const recipients = [...this.players.values()]
+      .filter((player) => player.socketId && (
+        channel === 'PUBLIC' ||
+        (channel === 'MAFIA' && player.isAlive && player.team === TEAMS.MAFIA) ||
+        (channel === 'DEAD' && !player.isAlive)
+      ))
+      .map((player) => player.socketId)
+      .filter((socketId): socketId is string => Boolean(socketId));
+    if (recipients.length > 0) this.bus.to(recipients).emit('chat:message', message);
+
+    if (!sender.isBot && channel === 'PUBLIC') this._handleBotReaction(text);
+    return { sent: true, channel };
   }
 
   syncFor(playerId: string) {
@@ -505,7 +754,14 @@ export class GameRoom {
   }
 
   _logEvent(text: string, kind = 'INFO') {
-    this.eventLog.push({ kind, text, round: this.round, at: Date.now() });
+    this.eventLog.push({
+      id: crypto.randomUUID(),
+      kind,
+      text,
+      round: this.round,
+      at: Date.now(),
+      visibility: 'PUBLIC',
+    });
     if (this.eventLog.length > 60) this.eventLog.splice(0, this.eventLog.length - 60);
   }
 
@@ -518,12 +774,20 @@ export class GameRoom {
     return {
       code: this.code,
       phase: this.phase,
+      isCustomRoom: this.isCustomRoom,
+      settings: {
+        ...this.settings,
+        timers: { ...this.settings.timers },
+        voting: { ...this.settings.voting },
+        effectiveMafiaCount: effectiveMafiaCount(this.settings, this.players.size),
+        maxMafiaCount: maxMafiaCount(this.settings.targetPlayerCount ?? this.players.size),
+      },
       round: this.round,
       deadline: this.phaseEndsAt,
       awaitingRevenge: this.awaitingRevenge ? { source: this.awaitingRevenge.source } : null,
       lastWords: this.phase === PHASES.LAST_WORDS && this.lastWordsPlayerId ? { playerId: this.lastWordsPlayerId } : null,
       defense: this.phase === PHASES.DEFENSE_STAGE && this.defensePlayerId ? { playerId: this.defensePlayerId } : null,
-      eventLog: this.eventLog.slice(-40),
+      eventLog: this.eventLog.filter((event) => event.visibility === 'PUBLIC').slice(-40),
       nightReport: this.pendingNightReport ?? { victim: null, silenced: null },
       votesCast: this.votes.size,
       votesExpected: this._alivePlayers().length,
@@ -544,8 +808,9 @@ export class GameRoom {
         isSilenced: player.isSilenced,
         micEnabled: this._micEnabled(player),
         hasRevealed: player.hasRevealed,
-        voteWeight: voteWeightOf(player),
+        voteWeight: voteWeightOf(player, this.settings.voting.mayorWeight),
         sid: player.socketId ?? null,
+        cosmetics: player.cosmetics ?? null,
       })),
     };
   }
@@ -553,13 +818,21 @@ export class GameRoom {
   privateState(playerId: string) {
     const player = this._requirePlayer(playerId);
     const base = this.publicState();
+    const eventLog = this.eventLog.filter((event) =>
+      event.visibility === 'PUBLIC' ||
+      (event.visibility === 'OWNER' && event.ownerId === player.id) ||
+      (event.visibility === 'MAFIA' && player.team === TEAMS.MAFIA) ||
+      (event.visibility === 'DEAD' && !player.isAlive),
+    ).slice(-40);
     return {
       ...base,
+      eventLog,
       you: {
         id: player.id,
         token: player.token,
         name: player.name,
         isHost: player.isHost,
+        cosmetics: player.cosmetics ?? null,
         role: player.role,
         team: player.team,
         isAlive: player.isAlive,
@@ -575,7 +848,9 @@ export class GameRoom {
   }
 
   broadcastUpdate() {
-    this.bus.to(this.code).emit('room:update', this.publicState());
+    for (const player of this.players.values()) {
+      if (player.isConnected) this._emitToPlayer(player, 'room:update', this.privateState(player.id));
+    }
     this._broadcastVoicePolicies();
   }
 
@@ -587,63 +862,55 @@ export class GameRoom {
   }
 
   _buildVoicePolicy(player: Player) {
-    const connected = [...this.players.values()].filter((candidate) => candidate.isConnected && candidate.socketId);
-    const dayPhase = DAY_PHASES.has(this.phase);
-    const socialPhase = this.phase === PHASES.LOBBY || this.phase === PHASES.GAME_OVER;
-    const nightPhase = this.phase === PHASES.NIGHT;
-    const lastWordsPhase = this.phase === PHASES.LAST_WORDS;
-    const defensePhase = this.phase === PHASES.DEFENSE_STAGE;
-
-    let channel = 'MUTED';
-    if (socialPhase) channel = 'LOBBY';
-    else if (nightPhase && player.isAlive && player.team === TEAMS.MAFIA) channel = 'MAFIA';
-    else if ((lastWordsPhase || defensePhase) && player.isAlive) channel = 'TOWN';
-    else if (!player.isAlive) channel = 'DEAD';
-    else if (dayPhase) channel = 'TOWN';
-
-    let canSpeak = false;
-    let canHear = false;
-    let audible: string[] = [];
-
+    const connected = [...this.players.values()].filter(
+      (peer) => peer.isConnected && peer.socketId,
+    );
     const socketsOf = (filter: (peer: Player) => boolean) =>
       connected
         .filter(filter)
         .map((peer) => peer.socketId)
         .filter((socketId): socketId is string => Boolean(socketId));
 
-    if (channel === 'LOBBY') {
-      canSpeak = true;
-      canHear = true;
-      audible = socketsOf((peer) => peer.id !== player.id);
-    } else if (channel === 'MAFIA') {
-      canSpeak = true;
-      canHear = true;
-      audible = socketsOf((peer) => peer.team === TEAMS.MAFIA && peer.id !== player.id);
-    } else if (channel === 'TOWN' && (lastWordsPhase || defensePhase)) {
-      const speakerId = lastWordsPhase ? this.lastWordsPlayerId : this.defensePlayerId;
-      canHear = true;
-      if (player.id === speakerId) {
-        canSpeak = true;
-        audible = socketsOf((peer) => peer.id !== player.id);
-      } else {
-        canSpeak = false;
-        const accused = connected.find((peer) => peer.id === speakerId);
-        audible = accused?.socketId ? [accused.socketId] : [];
-      }
-    } else if (channel === 'TOWN') {
-      canHear = true;
-      canSpeak = !player.isSilenced;
-      audible = socketsOf((peer) => peer.isAlive && !peer.isSilenced && peer.id !== player.id);
-    } else if (channel === 'DEAD') {
-      canSpeak = false;
-      canHear = dayPhase;
-      if (dayPhase) audible = socketsOf((peer) => peer.isAlive && !peer.isSilenced);
+    // بالليل قناة خاصة للمافيا الأحياء فقط؛ باقي اللاعبين لا يسمعوا ولا يتكلموا.
+    if (this.phase === PHASES.NIGHT) {
+      const isLivingMafia = player.isAlive && player.team === TEAMS.MAFIA;
+      return {
+        channel: isLivingMafia ? 'MAFIA' : 'MUTED',
+        canSpeak: isLivingMafia,
+        canHear: isLivingMafia,
+        audible: isLivingMafia
+          ? socketsOf(
+              (peer) =>
+                peer.id !== player.id && peer.isAlive && peer.team === TEAMS.MAFIA,
+            )
+          : [],
+        phase: this.phase,
+        round: this.round,
+      };
     }
 
-    return { channel, canSpeak, canHear, audible, phase: this.phase, round: this.round };
+    if (!player.isAlive && this.phase !== PHASES.GAME_OVER) {
+      return {
+        channel: 'DEAD',
+        canSpeak: true,
+        canHear: true,
+        audible: socketsOf((peer) => peer.id !== player.id && !peer.isAlive),
+        phase: this.phase,
+        round: this.round,
+      };
+    }
+
+    return {
+      channel: this.phase === PHASES.LOBBY || this.phase === PHASES.GAME_OVER ? 'LOBBY' : 'TOWN',
+      canSpeak: this._micEnabled(player),
+      canHear: true,
+      audible: socketsOf((peer) => peer.id !== player.id && (this.phase === PHASES.LOBBY || this.phase === PHASES.GAME_OVER || peer.isAlive)),
+      phase: this.phase,
+      round: this.round,
+    };
   }
 
-  _createPlayer(name: string, socketId: string | null) {
+  _createPlayer(name: string, socketId: string | null, cosmetics: PlayerCosmetics | null = null) {
     return {
       id: randomToken(),
       token: randomToken(),
@@ -652,6 +919,7 @@ export class GameRoom {
       isHost: false,
       isBot: false,
       isConnected: true,
+      cosmetics,
       role: null,
       team: null,
       isAlive: true,
@@ -670,7 +938,7 @@ export class GameRoom {
   }
 
   assignRoles(players: Player[]) {
-    const deck = buildDeck(players.length);
+    const deck = buildDeck(players.length, effectiveMafiaCount(this.settings, players.length));
     players.forEach((player, index) => this._assignRole(player, deck[index]));
 
     const mafiaTeammates = players
@@ -702,6 +970,16 @@ export class GameRoom {
       `A game supports at most ${LIMITS.MAX_PLAYERS} players`,
     );
 
+    validateRoomSettings(this.settings, this.players.size);
+    if (this.settings.targetPlayerCount !== null) {
+      assert(
+        this.players.size === this.settings.targetPlayerCount,
+        ErrorCodes.NOT_ENOUGH_PLAYERS,
+        this.players.size < this.settings.targetPlayerCount
+          ? `Waiting for ${this.settings.targetPlayerCount} players; currently ${this.players.size}`
+          : `Room requires exactly ${this.settings.targetPlayerCount} players; currently ${this.players.size}`,
+      );
+    }
     const seats = [...this.players.values()];
     this.assignRoles(seats);
 
@@ -791,18 +1069,69 @@ export class GameRoom {
     for (const bot of this._bots()) {
       if (!bot.isAlive) continue;
       this._scheduleBot(
-        () => {
-          if (this.phase !== PHASES.DAY_VOTING || this.awaitingRevenge) return;
-          const current = this.players.get(bot.id);
-          if (!current || !current.isAlive || this.votes.has(current.id)) return;
-          const candidates = this._alivePlayers().filter((p) => p.id !== current.id);
-          if (!candidates.length) return;
-          this.castVote(current.id, candidates[Math.floor(Math.random() * candidates.length)].id);
-        },
-        1500,
-        3500,
+        () => void this._chooseBotVote(bot.id, this.phase, this.round),
+        3000,
+        7000,
       );
     }
+  }
+
+  async _chooseBotVote(botId: string, phase: string, round: number) {
+    if (this.phase !== phase || this.round !== round || phase !== PHASES.DAY_VOTING || this.awaitingRevenge) return;
+    const bot = this.players.get(botId);
+    if (!bot || !bot.isAlive || this.votes.has(bot.id)) return;
+    const candidates = this._alivePlayers().filter((player) => player.id !== bot.id);
+    if (!candidates.length) return;
+
+    let targetId: string | null = null;
+    try {
+      const answer = await askBotBrain({
+        botName: bot.name,
+        botRole: bot.role ?? 'UNKNOWN',
+        chatHistory: this.botChatHistory.slice(-12),
+        candidates: candidates.map(({ id, name }) => ({ id, name })),
+        task: 'vote',
+      });
+      const requested = answer.voteTarget?.toLowerCase();
+      targetId = candidates.find(
+        (candidate) => candidate.id === answer.voteTarget || candidate.name.toLowerCase() === requested,
+      )?.id ?? null;
+    } catch (error) {
+      logger.warn(`Room ${this.code}: Gemini vote fallback for ${bot.name}`, error);
+    }
+
+    if (this.phase !== phase || this.round !== round || this.awaitingRevenge) return;
+    const current = this.players.get(botId);
+    if (!current || !current.isAlive || this.votes.has(botId)) return;
+    const legal = this._alivePlayers().filter((player) => player.id !== botId);
+    if (!legal.length) return;
+    if (!targetId || !legal.some((candidate) => candidate.id === targetId)) {
+      targetId = legal[Math.floor(Math.random() * legal.length)].id;
+    }
+    this.castVote(botId, targetId);
+  }
+
+  _rememberBotChat(name: string, text: string) {
+    const cleanName = name.replace(/[\u0000-\u001F]/g, '').trim().slice(0, 40);
+    const cleanText = text.replace(/[\u0000-\u001F]/g, '').trim().slice(0, config.chat.maxLength);
+    if (!cleanName || !cleanText) return;
+    this.botChatHistory.push({ name: cleanName, text: cleanText });
+    if (this.botChatHistory.length > 20) this.botChatHistory.splice(0, this.botChatHistory.length - 20);
+  }
+
+  _emitBotChat(bot: Player, text: string) {
+    let clean: string;
+    try {
+      clean = sanitizeChatText(text, config.chat.maxLength);
+    } catch {
+      return;
+    }
+    this._rememberBotChat(bot.name, clean);
+    this.bus.to(this.code).emit('chat:message', {
+      from: { id: bot.id, name: bot.name },
+      text: clean,
+      at: Date.now(),
+    });
   }
 
   _handleBotReaction(text: string) {
@@ -839,16 +1168,31 @@ export class GameRoom {
     this.lastBotReactionAt = Date.now();
     logger.info(`Room ${this.code}: bot ${speaker.name} reacting (intent=${intent}) to "${text.slice(0, 40)}"`);
 
+    const phase = this.phase;
+    const round = this.round;
     this._scheduleBot(() => {
-      if (!BOT_REACTION_PHASES.has(this.phase)) return;
-      const current = this.players.get(speaker!.id);
-      if (!current || !current.isAlive || current.isSilenced) return;
-      this.bus.to(this.code).emit('chat:message', {
-        from: { id: current.id, name: current.name },
-        text: reply,
-        at: Date.now(),
-      });
-    }, 2000, 4500);
+      void (async () => {
+        let generated = reply;
+        try {
+          const answer = await askBotBrain({
+            botName: speaker!.name,
+            botRole: speaker!.role ?? 'UNKNOWN',
+            chatHistory: this.botChatHistory.slice(-12),
+            candidates: this._alivePlayers()
+              .filter((player) => player.id !== speaker!.id)
+              .map(({ id, name }) => ({ id, name })),
+            task: 'chat',
+          });
+          if (answer.chatMessage) generated = answer.chatMessage;
+        } catch (error) {
+          logger.warn(`Room ${this.code}: Gemini chat fallback for ${speaker!.name}`, error);
+        }
+        if (this.phase !== phase || this.round !== round || !BOT_REACTION_PHASES.has(this.phase)) return;
+        const current = this.players.get(speaker!.id);
+        if (!current || !current.isAlive || current.isSilenced) return;
+        this._emitBotChat(current, generated);
+      })();
+    }, 3000, 7000);
   }
 
   _scheduleBotChat() {
@@ -866,11 +1210,7 @@ export class GameRoom {
           if (!current || !current.isAlive || current.isSilenced) return;
           const line = lines[Math.floor(Math.random() * lines.length)];
           if (!line) return;
-          this.bus.to(this.code).emit('chat:message', {
-            from: { id: current.id, name: current.name },
-            text: line,
-            at: Date.now(),
-          });
+          this._emitBotChat(current, line);
         },
         1400 + index * 2800,
         3000 + index * 3000,
@@ -927,7 +1267,7 @@ export class GameRoom {
       [...this.players.values()].filter((player) => this._canActAtNight(player)).map((p) => p.id),
     );
 
-    this._armTimer(config.timers.NIGHT_MS, () => this._resolveNight());
+    this._armTimer(this.settings.timers.nightMs, () => this._resolveNight());
     this.broadcastPhase({ elimination });
     this.broadcastUpdate();
     for (const id of this.expectedNightActors) {
@@ -1057,7 +1397,7 @@ export class GameRoom {
 
   _openDiscussion() {
     this.phase = PHASES.DAY_DISCUSSION;
-    this._armTimer(config.timers.DAY_DISCUSSION_MS, () => this._openVoting());
+    this._armTimer(this.settings.timers.discussionMs, () => this._openVoting());
     const nightReport = this.pendingNightReport ?? { victim: null, silenced: null };
     this.broadcastPhase({ nightReport });
     this.broadcastUpdate();
@@ -1067,7 +1407,7 @@ export class GameRoom {
   _openVoting() {
     this.phase = PHASES.DAY_VOTING;
     this.votes.clear();
-    this._armTimer(config.timers.DAY_VOTING_MS, () => this._resolveVotes());
+    this._armTimer(this.settings.timers.votingMs, () => this._resolveVotes());
     this.broadcastPhase();
     this.broadcastUpdate();
     this._scheduleVoteBots();
@@ -1078,8 +1418,24 @@ export class GameRoom {
     this._clearTimer();
 
     const voters = this._alivePlayers();
-    const tally = tallyVotes(this.players, this.votes);
-    const { eliminatedId, tied, topCount } = resolveTally(tally);
+    const tally = tallyVotes(this.players, this.votes, this.settings.voting.mayorWeight);
+    const resolved = resolveTally(tally);
+    let { eliminatedId } = resolved;
+    const { tied, topCount } = resolved;
+    if (tied && topCount > 0 && this.settings.voting.tiePolicy === 'RANDOM_TOP') {
+      const tiedIds = [...tally.entries()].filter(([, count]) => count === topCount).map(([id]) => id);
+      eliminatedId = tiedIds[Math.floor(Math.random() * tiedIds.length)] ?? null;
+      this._logEvent('التعادل اتحسم بقرعة بين أصحاب أعلى أصوات', 'VOTE');
+    }
+    if (tied && this.settings.voting.tiePolicy === 'REVOTE') {
+      this.votes.clear();
+      this._logEvent('الأصوات تعادلت — المجلس هيعيد التصويت', 'VOTE');
+      this._armTimer(this.settings.timers.votingMs, () => this._resolveVotes());
+      this.broadcastPhase();
+      this.broadcastUpdate();
+      this._scheduleVoteBots();
+      return;
+    }
 
     const tallyRows = [...tally.entries()]
       .map(([pid, weightedVotes]) => ({
@@ -1092,7 +1448,7 @@ export class GameRoom {
     const weights = voters.map((player) => ({
       playerId: player.id,
       name: player.name,
-      weight: voteWeightOf(player),
+      weight: voteWeightOf(player, this.settings.voting.mayorWeight),
     }));
 
     const eliminatedPlayer = eliminatedId ? this.players.get(eliminatedId) : null;
@@ -1122,13 +1478,13 @@ export class GameRoom {
     this.phase = PHASES.DEFENSE_STAGE;
     this.defensePlayerId = accused.id;
     this._logEvent(
-      `${accused.name} فوق منصة الاتهام! عنده ${Math.round(config.timers.DEFENSE_MS / 1000)} ثانية يدافع.. والتصويت لسه بيتحرك!`,
+      `${accused.name} فوق منصة الاتهام! عنده ${Math.round(this.settings.timers.defenseMs / 1000)} ثانية يدافع.. والتصويت لسه بيتحرك!`,
       'DEFENSE',
     );
-    this._armTimer(config.timers.DEFENSE_MS, () => this._finishDefense());
+    this._armTimer(this.settings.timers.defenseMs, () => this._finishDefense());
     this.broadcastPhase();
     this.broadcastUpdate();
-    logger.info(`Room ${this.code}: ${accused.name} defends (${config.timers.DEFENSE_MS}ms, vote shifting open)`);
+    logger.info(`Room ${this.code}: ${accused.name} defends (${this.settings.timers.defenseMs}ms, vote shifting open)`);
   }
 
   _finishDefense() {
@@ -1136,7 +1492,7 @@ export class GameRoom {
     this._clearTimer();
     this.defensePlayerId = null;
 
-    const tally = tallyVotes(this.players, this.votes);
+    const tally = tallyVotes(this.players, this.votes, this.settings.voting.mayorWeight);
     const { eliminatedId } = resolveTally(tally);
     const condemned = eliminatedId ? this.players.get(eliminatedId) ?? null : null;
 
@@ -1153,11 +1509,14 @@ export class GameRoom {
   _beginLastWords(accused: Player) {
     this.phase = PHASES.LAST_WORDS;
     this.lastWordsPlayerId = accused.id;
-    this._logEvent(`${accused.name} طلع المنصة.. ليه ٢٠ ثانية آخر كلام`, 'LAST_WORDS');
-    this._armTimer(config.timers.LAST_WORDS_MS, () => this._finishLastWords());
+    this._logEvent(
+      `${accused.name} طلع المنصة.. ليه ${Math.round(this.settings.timers.lastWordsMs / 1000)} ثانية آخر كلام`,
+      'LAST_WORDS',
+    );
+    this._armTimer(this.settings.timers.lastWordsMs, () => this._finishLastWords());
     this.broadcastPhase();
     this.broadcastUpdate();
-    logger.info(`Room ${this.code}: ${accused.name} gets last words (${config.timers.LAST_WORDS_MS}ms)`);
+    logger.info(`Room ${this.code}: ${accused.name} gets last words (${this.settings.timers.lastWordsMs}ms)`);
   }
 
   _finishLastWords() {
@@ -1283,6 +1642,7 @@ export class GameRoom {
         role: player.role,
         isAlive: player.isAlive,
         isHost: player.isHost,
+        cosmetics: player.cosmetics ?? null,
       })),
     };
     this.bus.to(this.code).emit('game:over', this.result);

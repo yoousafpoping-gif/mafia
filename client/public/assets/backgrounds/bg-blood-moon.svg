@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="bmSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d0306"/>
+      <stop offset=".5" stop-color="#2a070e"/>
+      <stop offset="1" stop-color="#4a0d16"/>
+    </linearGradient>
+    <radialGradient id="bmMoon" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ff5a4f" stop-opacity=".9"/>
+      <stop offset=".4" stop-color="#c41e2a" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#c41e2a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- قمر الدم: سماء قرمزية وقمر عملاق وصوامع وأسطح المدينة القديمة -->
+  <rect width="1920" height="1080" fill="url(#bmSky)"/>
+  <circle cx="960" cy="420" r="340" fill="url(#bmMoon)"/>
+  <circle cx="960" cy="420" r="190" fill="#e8353f" opacity=".95"/>
+  <circle cx="920" cy="380" r="26" fill="#b81f2b" opacity=".6"/>
+  <circle cx="1010" cy="450" r="34" fill="#b81f2b" opacity=".5"/>
+  <circle cx="970" cy="330" r="16" fill="#b81f2b" opacity=".45"/>
+  <!-- سحب رقيقة قدام القمر -->
+  <g fill="#2a070e" opacity=".55">
+    <ellipse cx="800" cy="380" rx="240" ry="22"/>
+    <ellipse cx="1100" cy="470" rx="300" ry="18"/>
+    <ellipse cx="880" cy="540" rx="260" ry="14"/>
+  </g>
+  <!-- خفافيش -->
+  <g fill="#0d0306">
+    <path d="M420 220 q10 -14 22 -6 q4 -10 14 -10 q-2 12 8 18 q-12 -2 -18 6 q-8 -8 -14 -2 q-6 -10 -12 -6 z"/>
+    <path d="M560 160 q8 -10 17 -5 q3 -8 11 -8 q-2 10 6 14 q-9 -1 -14 5 q-6 -6 -11 -1 q-5 -8 -9 -5 z"/>
+    <path d="M1300 200 q8 -10 17 -5 q3 -8 11 -8 q-2 10 6 14 q-9 -1 -14 5 q-6 -6 -11 -1 q-5 -8 -9 -5 z"/>
+  </g>
+  <!-- خط الأفق: صوامع وأبراج -->
+  <g fill="#0a0205">
+    <path d="M0 760 L0 1080 L340 1080 L340 820 L310 820 L310 760 L280 760 L280 820 L250 820 L250 860 L150 860 L150 820 L120 820 L120 760 Z"/>
+    <rect x="380" y="700" width="220" height="380"/>
+    <path d="M380 700 L490 640 L600 700 Z"/>
+    <rect x="640" y="740" width="180" height="340"/>
+    <rect x="860" y="690" width="240" height="390"/>
+    <path d="M860 690 L980 620 L1100 690 Z"/>
+    <rect x="1140" y="760" width="200" height="320"/>
+    <rect x="1380" y="700" width="260" height="380"/>
+    <path d="M1380 700 L1510 630 L1640 700 Z"/>
+    <rect x="1680" y="780" width="240" height="300"/>
+  </g>
+  <!-- نوافذ برتقالية خافتة -->
+  <g fill="#ff9a5c" opacity=".5">
+    <rect x="420" y="750" width="12" height="18"/><rect x="470" y="790" width="12" height="18"/><rect x="530" y="750" width="12" height="18"/>
+    <rect x="680" y="790" width="12" height="18"/><rect x="740" y="830" width="12" height="18"/>
+    <rect x="900" y="740" width="12" height="18"/><rect x="960" y="780" width="12" height="18"/><rect x="1040" y="740" width="12" height="18"/>
+    <rect x="1180" y="810" width="12" height="18"/><rect x="1260" y="850" width="12" height="18"/>
+    <rect x="1420" y="750" width="12" height="18"/><rect x="1500" y="790" width="12" height="18"/><rect x="1580" y="750" width="12" height="18"/>
+  </g>
+  <rect width="1920" height="1080" fill="#0d0306" opacity=".3"/>
+</svg>

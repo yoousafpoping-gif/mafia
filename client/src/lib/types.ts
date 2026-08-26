@@ -25,6 +25,15 @@ export type Team = 'MAFIA' | 'TOWN' | 'NEUTRAL';
 export type Ability = 'KILL' | 'SILENCE' | 'SAVE' | 'SHOOT' | 'FRAME' | 'INVESTIGATE';
 
 export type VoiceChannel = 'LOBBY' | 'MAFIA' | 'TOWN' | 'DEAD' | 'MUTED';
+export type PresenceState = 'connected' | 'reconnecting' | 'offline' | 'left';
+
+export interface PlayerCosmetics {
+  cardFrame?: string;
+  title?: string | null;
+  badges?: string[];
+  emote?: string | null;
+  background?: string | null;
+}
 
 export interface VoicePolicy {
   channel: VoiceChannel;
@@ -41,19 +50,37 @@ export interface PublicPlayer {
   isHost: boolean;
   isBot: boolean;
   isConnected: boolean;
+  presence?: PresenceState;
   isAlive: boolean;
   isSilenced: boolean;
   micEnabled: boolean;
   hasRevealed: boolean;
   voteWeight: number;
   sid?: string | null;
+  cosmetics?: PlayerCosmetics;
 }
 
+export type ChatChannel = 'PUBLIC' | 'MAFIA' | 'DEAD';
+export type LogVisibility = 'PUBLIC' | 'OWNER' | 'MAFIA' | 'DEAD';
+
 export interface LogEvent {
-  kind: 'NIGHT' | 'MAYOR' | 'VOTE' | 'EXECUTION' | 'LAST_WORDS' | 'WIN' | 'INFO';
+  id: string;
+  kind:
+    | 'PHASE'
+    | 'NIGHT'
+    | 'ACTION'
+    | 'MAYOR'
+    | 'VOTE'
+    | 'DEFENSE'
+    | 'EXECUTION'
+    | 'LAST_WORDS'
+    | 'WIN'
+    | 'INFO';
   text: string;
   round: number;
   at: number;
+  visibility: LogVisibility;
+  ownerId?: string;
 }
 
 export interface PartnerInfo {
@@ -74,6 +101,7 @@ export interface YouState {
   bulletsLeft: number;
   ability: Ability | null;
   partners: PartnerInfo[];
+  cosmetics?: PlayerCosmetics;
   hasSubmittedNightAction: boolean;
   voteTarget: string | null;
 }
@@ -87,12 +115,33 @@ export interface RoomResult {
     role: Role;
     isAlive: boolean;
     isHost: boolean;
+    cosmetics?: PlayerCosmetics;
   }[];
+}
+
+export interface RoomSettingsState {
+  targetPlayerCount: number | null;
+  mafiaCount: number | null;
+  effectiveMafiaCount: number;
+  maxMafiaCount: number;
+  timers: {
+    nightMs: number;
+    discussionMs: number;
+    votingMs: number;
+    defenseMs: number;
+    lastWordsMs: number;
+  };
+  voting: {
+    mayorWeight: 1 | 2 | 3;
+    tiePolicy: 'NO_EXECUTION' | 'RANDOM_TOP' | 'REVOTE';
+  };
 }
 
 export interface GameState {
   code: string;
   phase: Phase;
+  isCustomRoom: boolean;
+  settings: RoomSettingsState;
   round: number;
   deadline: number | null;
   awaitingRevenge: { source: 'NIGHT' | 'VOTE' } | null;
@@ -109,7 +158,10 @@ export interface GameState {
   voteTally?: Record<string, number>;
   rematchVotes?: string[];
   result: RoomResult | null;
+  /** موجود فقط عندما تكون النتيجة صادرة من backend موثوق، وليس من هوست P2P. */
+  resultVerification?: { roomCode: string; playerId: string } | null;
   players: PublicPlayer[];
+  voicePolicy?: VoicePolicy;
   you?: YouState;
 }
 
@@ -177,9 +229,10 @@ export interface MayorRevealPayload {
 }
 
 export interface ChatMessage {
-  from: { id: string; name: string };
+  from: { id: string; name: string; cosmetics?: PlayerCosmetics | null };
   text: string;
   at: number;
+  channel: ChatChannel;
 }
 
 export interface SeatRecord {

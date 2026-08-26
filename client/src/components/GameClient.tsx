@@ -3,18 +3,19 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Loader2, UserX } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2, UserX } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useMafiaGame } from '@/hooks/useMafiaGame';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
-import { useAuth } from '@/context/AuthContext';
-import { playSound, playNarrator, stopNarrator } from '@/lib/audioManager';
+import { authHeaders, useAuth } from '@/context/AuthContext';
 import { SERVER_URL } from '@/lib/config';
-import { ROLE_META } from '@/lib/roles';
+import { backgroundImage } from '@/lib/cosmetics';
+import { recordGuestResult } from '@/lib/guestProfile';
+import { playSound, playNarrator, stopNarrator } from '@/lib/audioManager';
 import { playSfx, initGlobalSfx, startAmbientRain, stopAmbientRain, startNightAmbient, stopNightAmbient } from '@/lib/sfx';
-import { recordGameResult } from '@/lib/stats';
-import { loadSeat } from '@/lib/seat';
 import { localNotify, syncRoomPushBinding } from '@/lib/pushNotifications';
 import { ChatDock } from './ChatDock';
+import { CinematicTableVfx } from './CinematicTableVfx';
 import { CouncilTable } from './CouncilTable';
 import { ExecutionOverlay } from './ExecutionOverlay';
 import { GameLogPanel } from './GameLogPanel';
@@ -31,6 +32,7 @@ import { RoleRevealModal } from './RoleRevealModal';
 import { Toasts } from './Toasts';
 import { TopBar } from './TopBar';
 import { VictoryModal } from './VictoryModal';
+import { VoiceDiagnostics } from './VoiceDiagnostics';
 import { VotingPanel } from './VotingPanel';
 
 export function GameClient({ code }: { code: string }) {
@@ -40,8 +42,29 @@ export function GameClient({ code }: { code: string }) {
   const voice = useVoiceChat(state ?? null, game.voicePolicy);
   const [helpOpen, setHelpOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
+  const [isTopBarOpen, setIsTopBarOpen] = useState(true);
+  const [isChatOpen, setIsChatOpen] = useState(true);
+  const [isChatPanelOpen, setIsChatPanelOpen] = useState(false);
+  const spotlightRef = useRef<HTMLDivElement>(null);
   const phase = state?.phase;
   const round = state?.round;
+
+  useEffect(() => {
+    let animationFrame = 0;
+    const handlePointerMove = (event: PointerEvent) => {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(() => {
+        spotlightRef.current?.style.setProperty('--mouse-x', `${event.clientX}px`);
+        spotlightRef.current?.style.setProperty('--mouse-y', `${event.clientY}px`);
+      });
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: true });
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.cancelAnimationFrame(animationFrame);
+    };
+  }, []);
 
   // الخروج النظيف: purge كامل ثم رجوع فوري للرئيسية —
   // الكومبوننت يتفك قبل ما أي شاشة تحميل تلحق تظهر.
@@ -137,41 +160,48 @@ export function GameClient({ code }: { code: string }) {
     return () => stopNightAmbient();
   }, [phase]);
 
-  // Local progression stats — recorded exactly once per finished game.
-  // مع حساب جوجل: النتيجة بترتفع كمان لبروفايل السيرفر (صدارة + كوينز).
-  const { user: authUser, refreshProfile } = useAuth();
+  // الضيف يحفظ تقدمه محليًا فقط؛ الحساب السحابي يرسل النتيجة الموثقة للـ API المحمي.
+  const { user: authUser, refreshProfile, profile: myProfile, updateGuestProfile } = useAuth();
+  // الخلفية المجهزة — عرض شخصي لصاحبها بس
+  const tableBg = backgroundImage(myProfile?.equipped.background);
   const recordedRef = useRef('');
   useEffect(() => {
     const result = state?.result;
-    if (!result || !state || state.phase !== 'GAME_OVER' || !state.you) return;
-    const key = `${state.code}:${result.winner}:${result.reason}`;
+    const verification = state?.resultVerification;
+    if (!result || !state || state.phase !== 'GAME_OVER' || !state.you || !authUser || !verification) return;
+    const key = `${verification.roomCode}:${verification.playerId}`;
     if (recordedRef.current === key) return;
     recordedRef.current = key;
-    const you = state.you;
-    const roster = result.roster;
-    const applied = recordGameResult(
-      you.id,
-      result.winner,
-      roster.map((entry) => ({ id: entry.id, role: entry.role, isAlive: entry.isAlive })),
-    );
-    if (!applied || !authUser) return;
-    const youSeat = roster.find((entry) => entry.id === you.id);
-    const yourTeam = youSeat?.role ? ROLE_META[youSeat.role]?.team : null;
-    const won = yourTeam
-      ? yourTeam === 'NEUTRAL'
-        ? result.winner === 'NEUTRAL'
-        : result.winner === yourTeam
-      : false;
-    fetch(`${SERVER_URL}/api/profile/${authUser.uid}/result`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ won }),
-    })
-      .then(() => refreshProfile())
-      .catch(() => {
-        /* السيرفر مش متصل — النتيجة المحلية اتحفظت خلاص */
-      });
-  }, [state, authUser, refreshProfile]);
+    if (authUser.provider === 'guest') {
+      const seat = result.roster?.find((entry) => entry.id === verification.playerId);
+      if (!seat) return;
+      const playerTeam = ['MAFIA_BOSS', 'MAFIOSO', 'SILENCER', 'FRAMER'].includes(seat.role)
+        ? 'MAFIA' : seat.role === 'JOKER' ? 'NEUTRAL' : 'TOWN';
+      updateGuestProfile((current) => recordGuestResult(current, {
+        idempotencyKey: key,
+        winner: result.winner,
+        playerTeam,
+        role: seat.role,
+        alive: seat.isAlive,
+      }));
+      return;
+    }
+    void (async () => {
+      try {
+        const response = await fetch(`${SERVER_URL}/api/profile/result`, {
+          method: 'POST',
+          headers: await authHeaders({
+            'Content-Type': 'application/json',
+            'Idempotency-Key': `result:${verification.roomCode}:${verification.playerId}`,
+          }),
+          body: JSON.stringify(verification),
+        });
+        if (response.ok) await refreshProfile();
+      } catch {
+        /* لا fallback محلي: المكافآت الدائمة تتطلب نتيجة backend موثوقة. */
+      }
+    })();
+  }, [state, authUser, refreshProfile, updateGuestProfile]);
 
   useEffect(() => {
     if (!phase) return;
@@ -254,33 +284,66 @@ export function GameClient({ code }: { code: string }) {
   // قناة المافيا السرية — ليلًا وأنت حي من العيلة
   const nightFamilyChannel =
     state.phase === 'NIGHT' && you.isAlive && you.team === 'MAFIA';
+  const chatChannel = !you.isAlive ? 'DEAD' : nightFamilyChannel ? 'MAFIA' : 'PUBLIC';
 
   return (
     // Full-bleed: الشاشة كلها هي أوضة اللعبة — الصورة على الروت مباشرة.
-    <div className="fixed inset-0 w-full h-full overflow-hidden bg-[url('/assets/backgrounds/table_bg.jpeg')] bg-cover bg-center bg-no-repeat">
-      {/* Night falls: the whole room photo crushes to 35% brightness */}
+    // الخلفية المجهزة من المتجر بتستبدل الجوخ الافتراضي (عرض شخصي فقط).
+    <div
+      className="fixed inset-0 w-full h-full overflow-hidden bg-[url('/assets/backgrounds/table_bg.jpeg')] bg-cover bg-center bg-no-repeat"
+      style={tableBg ? { backgroundImage: `url('${tableBg}')` } : undefined}
+    >
+      {/* Day keeps the original room colors; night drops the whole room into darkness. */}
       <div
-        className={`pointer-events-none absolute inset-0 z-0 bg-black/40 transition-[filter] duration-1000 ${
-          phase === 'NIGHT' ? 'night-dim' : ''
+        className={`pointer-events-none absolute inset-0 z-0 bg-black transition-opacity duration-1000 ${
+          phase === 'NIGHT' ? 'opacity-85' : 'opacity-0'
         }`}
       />
       {/* Flickering light on night entry (2s, opacity jumps .3 → .9) */}
       {phase === 'NIGHT' && (
         <span aria-hidden className="lighting-flicker pointer-events-none absolute inset-0 z-[5] bg-black" />
       )}
+      {state.phase !== 'LOBBY' && <CinematicTableVfx />}
+      {state.phase !== 'LOBBY' && (
+        <div
+          ref={spotlightRef}
+          aria-hidden="true"
+          className={`pointer-events-none fixed inset-0 z-30 transition-opacity duration-1000 ${
+            phase === 'NIGHT' ? 'opacity-100' : 'opacity-0'
+          }`}
+          style={{
+            background:
+              'radial-gradient(circle 360px at var(--mouse-x, 50vw) var(--mouse-y, 50vh), rgba(255, 235, 185, 0.08) 0%, rgba(0, 0, 0, 0.18) 42%, rgba(0, 0, 0, 0.88) 100%)',
+          }}
+        />
+      )}
 
-      <div className="relative z-10 flex h-full w-full flex-col">
+      <div className="relative z-40 flex h-full w-full flex-col">
       {/* التوب بار بيتشال وقت الليل — شاشة الليل ملهاش هيدر،
           والمايك/الكود/الخروج موجودين جوه الـ NightOverlay نفسها */}
       {state.phase !== 'NIGHT' && (
-        <TopBar
-          state={state}
-          connected={status.connected}
-          voice={voice}
-          onOpenHelp={() => setHelpOpen(true)}
-          onOpenLog={() => setLogOpen(true)}
-          onLeave={handleLeave}
-        />
+        <motion.div
+          animate={{ y: isTopBarOpen ? 0 : '-100%' }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          className="absolute inset-x-0 top-0 z-[70]"
+        >
+          <TopBar
+            state={state}
+            connected={status.connected}
+            voice={voice}
+            onOpenHelp={() => setHelpOpen(true)}
+            onOpenLog={() => setLogOpen(true)}
+            onLeave={handleLeave}
+          />
+          <button
+            type="button"
+            onClick={() => setIsTopBarOpen((open) => !open)}
+            aria-label={isTopBarOpen ? 'إخفاء الشريط العلوي' : 'إظهار الشريط العلوي'}
+            className="absolute left-1/2 top-full flex h-7 w-12 -translate-x-1/2 cursor-pointer items-center justify-center rounded-b-lg border border-amber-900/70 bg-neutral-900 text-amber-500 transition-all hover:bg-neutral-800 hover:shadow-[0_0_10px_rgba(245,158,11,0.3)]"
+          >
+            {isTopBarOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+        </motion.div>
       )}
 
       {state.phase !== 'LOBBY' && (
@@ -288,14 +351,14 @@ export function GameClient({ code }: { code: string }) {
       )}
 
       {state.phase === 'LOBBY' && (
-        <main className="noir-vignette flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-xl px-4 py-5">
-            <LobbyView
-              state={state}
-              onStart={game.startGame}
-              onAddBot={(count) => void game.addBot(count)}
-            />
-          </div>
+        <main className="fixed inset-0 z-20 min-h-screen w-full overflow-y-auto bg-[url('/assets/backgrounds/lobby-bg.jpeg')] bg-cover bg-center bg-no-repeat">
+          <LobbyView
+            state={state}
+            onStart={game.startGame}
+            onUpdateSettings={game.updateSettings}
+            onAddBot={(count) => void game.addBot(count)}
+            onKick={(playerId) => void game.kickPlayer(playerId)}
+          />
         </main>
       )}
 
@@ -308,17 +371,19 @@ export function GameClient({ code }: { code: string }) {
               round={state.round}
             />
           )}
-          <main className="relative min-h-0 flex-1">
+          <main className="relative min-h-0 flex-1 overflow-hidden">
             {/* pt/pb أمان: مسافة فوق للهيدر وتحت لدوك الشات عشان الكروت ما تقصّش */}
-            <div className="absolute inset-0 px-4 pb-28 pt-16 sm:px-4">
+            <div className={`absolute inset-0 px-2 pt-14 transition-[padding] duration-200 sm:px-4 sm:pt-16 ${isChatOpen && isChatPanelOpen ? 'pb-64 sm:pb-28' : 'pb-16 sm:pb-20'}`}>
               {state.phase !== 'GAME_OVER' ? (
-                <CouncilTable
+                <div className={`h-full transition-[filter] duration-1000 ${phase === 'NIGHT' ? 'brightness-[0.18]' : 'brightness-100'}`}>
+                  <CouncilTable
                       state={state}
                       onRevealMayor={game.revealMayor}
                       speakingIds={tableSpeakingIds}
                       recentMessages={bubbles}
                       reactions={game.reactions}
                     />
+                </div>
               ) : (
                 state.result && (
                   <div className="mx-auto h-full max-w-3xl overflow-y-auto">
@@ -360,16 +425,26 @@ export function GameClient({ code }: { code: string }) {
           </main>
 
           <ChatDock
-            messages={game.chat}
+            isSidebarOpen={isChatOpen}
+            onToggleSidebar={() => setIsChatOpen((open) => !open)}
+            isPanelOpen={isChatPanelOpen}
+            onTogglePanel={() => setIsChatPanelOpen((open) => !open)}
+            messages={game.chat.filter((message) => message.channel === chatChannel)}
             youId={you.id}
+            channel={chatChannel}
             canSend={Boolean(
-              (you.isAlive && !you.isSilenced && isDay) ||
+              !you.isAlive ||
+                (you.isAlive && !you.isSilenced && isDay) ||
                 (lastWordsActive && lastWordsMine) ||
                 defendingMe ||
                 nightFamilyChannel,
             )}
             channelNote={
-              nightFamilyChannel ? 'قناة المافيا السرية (خاصة بفرقتك)' : null
+              chatChannel === 'DEAD'
+                ? 'وضع المتفرج — قناة الموتى فقط، لا تصل رسائلك للأحياء'
+                : nightFamilyChannel
+                  ? 'قناة المافيا السرية (خاصة بفرقتك)'
+                  : 'القناة العامة'
             }
             disabledReason={
               !you.isAlive
@@ -431,6 +506,8 @@ export function GameClient({ code }: { code: string }) {
 
       <GameLogPanel state={state} open={logOpen} onClose={() => setLogOpen(false)} />
 
+      <VoiceDiagnostics voice={voice} />
+
       {/* إعلان النهاية السينمائي — فوق كل حاجة، وجميع الشاشات تحت الرؤية منه */}
       {state.phase === 'GAME_OVER' && state.result && (
         <VictoryModal
@@ -466,19 +543,12 @@ function NoSeatScreen({
   toasts: { id: number; code?: string; message: string }[];
   onDismissToast: (id: number) => void;
 }) {
-  const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const inviteSeenRef = useRef(false);
-
-  useEffect(() => {
-    // اسمك القديم في الأوضة دي (لو لعبت قبل كده) — مؤجّل عشان setState
-    // مباشر جوه الإفكت بيعمل cascading renders
-    const hydrate = window.setTimeout(() => {
-      const saved = loadSeat(code);
-      if (saved?.name) setName(saved.name);
-    }, 0);
-    return () => window.clearTimeout(hydrate);
-  }, [code]);
+  // خلفية المتجر المجهزة على شاشة الدخول كمان
+  const { profile } = useAuth();
+  const playerName = profile?.playerName ?? '';
+  const tableBg = backgroundImage(profile?.equipped.background);
 
   // إشعار الدعوة — أول ما الشاشة تنزل من لينك فيه ?invite=
   useEffect(() => {
@@ -488,17 +558,20 @@ function NoSeatScreen({
   }, [onInviteSeen]);
 
   const handleJoin = async () => {
-    if (name.trim().length < 2 || busy) return;
+    if (playerName.length < 2 || busy) return;
     setBusy(true);
     try {
-      await onJoin(code, name.trim());
+      await onJoin(code, playerName);
     } catch {
       setBusy(false);
     }
   };
 
   return (
-    <main className="fixed inset-0 flex w-full items-center justify-center overflow-hidden bg-[url('/assets/backgrounds/table_bg.jpeg')] bg-cover bg-center bg-no-repeat px-4">
+    <main
+      className="fixed inset-0 flex w-full items-center justify-center overflow-hidden bg-[url('/assets/backgrounds/table_bg.jpeg')] bg-cover bg-center bg-no-repeat px-4"
+      style={tableBg ? { backgroundImage: `url('${tableBg}')` } : undefined}
+    >
       <div className="pointer-events-none absolute inset-0 z-0 bg-black/40" />
       <div className="relative z-10 w-full max-w-sm rounded-2xl border border-night-600/60 bg-black/60 p-8 text-center backdrop-blur-md">
         {/* سبينر بس وقت إعادة الربط التلقائية — بعدها فورم الدخول اليدوي
@@ -516,17 +589,12 @@ function NoSeatScreen({
             <p className="mt-4 text-sm text-slate-400">
               وصلت أوضة <span className="font-mono text-gold-300">{code}</span> — اكتب اسمك وادخل.
             </p>
-            <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              onKeyDown={(event) => event.key === 'Enter' && void handleJoin()}
-              maxLength={16}
-              placeholder="اسمك يا بطل..."
-              className="mt-5 w-full rounded-lg border border-night-600 bg-night-900/90 px-3 py-2.5 text-center text-sm text-slate-100 placeholder-slate-600 outline-none transition focus:border-gold-500/60 focus:ring-2 focus:ring-gold-500/20"
-            />
+            <div className="mt-5 w-full rounded-lg border border-night-600 bg-night-900/90 px-3 py-2.5 text-center text-sm font-bold text-gold-100">
+              {playerName}
+            </div>
             <button
               onClick={() => void handleJoin()}
-              disabled={name.trim().length < 2 || busy}
+              disabled={playerName.length < 2 || busy}
               className="mt-3 w-full rounded-lg border border-gold-500/50 bg-gold-500/15 px-5 py-2.5 text-sm font-bold text-gold-300 transition enabled:hover:bg-gold-500/25 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy ? 'بنجهّز قعدتك...' : 'ادخل الأوضة'}

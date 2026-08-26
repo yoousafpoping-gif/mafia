@@ -5,7 +5,7 @@ export function registerRoomHandlers(socket, manager, run) {
   socket.on('room:create', (payload, ack) =>
     run(ack, () => {
       const name = sanitizeName(payload?.name);
-      const { room, player } = manager.createRoom({ name, socketId: socket.id });
+      const { room, player } = manager.createRoom({ name, socketId: socket.id, cosmetics: payload?.cosmetics ?? null });
       socket.join(room.code);
       return {
         code: room.code,
@@ -20,10 +20,10 @@ export function registerRoomHandlers(socket, manager, run) {
   socket.on('room:quick_match', (payload, ack) =>
     run(ack, () => {
       const name = sanitizeName(payload?.name);
-      const { code, created } = quickMatch(manager, { name, socketId: socket.id });
+      const { code, created } = quickMatch(manager, { name, socketId: socket.id, cosmetics: payload?.cosmetics ?? null });
       if (!created) {
         // فيه أوضة عامة — انضم بمسار الدخول العادي المجرّب
-        const { room, player } = manager.joinRoom({ code, name, socketId: socket.id });
+        const { room, player } = manager.joinRoom({ code, name, socketId: socket.id, cosmetics: payload?.cosmetics ?? null });
         socket.join(room.code);
         return {
           code: room.code,
@@ -54,6 +54,7 @@ export function registerRoomHandlers(socket, manager, run) {
         name: payload?.name,
         token: payload?.token ?? null,
         socketId: socket.id,
+        cosmetics: payload?.cosmetics ?? null,
       });
       socket.join(room.code);
       return {

@@ -2,10 +2,11 @@
 
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Crown, Crosshair, Gavel, Lock, MicOff, Skull, Users, VenetianMask, WifiOff } from 'lucide-react';
+import { Crown, Crosshair, Gavel, Lock, MicOff, Users, VenetianMask, WifiOff } from 'lucide-react';
 import { BotAvatar } from './Avatars';
 import { METAL_HEADER } from '@/styles/themeConfig';
 import { playReactionSound, reactionById } from '@/lib/reactions';
+import { frameImage, titleName } from '@/lib/cosmetics';
 import type { GameState, Phase, PublicPlayer } from '@/lib/types';
 
 const PHASE_AR: Partial<Record<Phase, string>> = {
@@ -31,12 +32,13 @@ interface SeatMath {
  * بيوفر مسافة بين الكروت الجنب بعض (مربع زمان كان بيقص ويزاحم).
  */
 function seatPos(index: number, total: number): SeatMath {
-  const angle = (index / total) * 2 * Math.PI - Math.PI/2;
+  const angle = (index / total) * 2 * Math.PI - Math.PI / 2;
+  const radius = 40;
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
   return {
-    x: 50 + 36 * cos,
-    y: 50 + 33 * sin,
+    x: 50 + radius * cos,
+    y: 50 + radius * sin,
     inwardX: -cos,
     inwardY: -sin,
   };
@@ -109,7 +111,7 @@ export function CouncilTable({
         </div>
       </div>
 
-      <div className="relative min-h-[340px] flex-1">
+      <div className="relative min-h-[260px] flex-1 sm:min-h-[340px]">
         {/* vignette خفيف ناعم — مش بقعة منورة وسط الشاشة، وخلف كل الكروت والبالونات (z-0) */}
         <span
           aria-hidden
@@ -121,7 +123,7 @@ export function CouncilTable({
 
         {/* elliptical stage fills the whole container — circle-on-square كان بيضيّع
             المساحة الرأسية على الموبايل ويخلي الكروت تتزاحم */}
-        <div className="absolute inset-0 z-10 h-full w-full">
+        <div className="absolute left-1/2 top-1/2 z-10 aspect-square w-[min(92vw,68vh)] max-h-full max-w-full -translate-x-1/2 -translate-y-1/2 bg-transparent shadow-none sm:w-[min(78vw,78vh)]">
           {/* center phase caption — شفاف تمامًا وخلف كل الكروت والبالونات (z-0) */}
           <div className="pointer-events-none absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2 px-6 py-4 text-center sm:px-10 sm:py-5">
             <span className="block font-serif text-xl font-black text-gold-500 drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)] drop-shadow-[0_0_14px_rgba(0,0,0,0.9)] sm:text-2xl">
@@ -131,7 +133,7 @@ export function CouncilTable({
               round {state.round}
             </span>
             <span className="mt-1 flex items-center justify-center gap-1 font-mono text-[10px] font-bold text-blood-300 drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)]">
-              <Skull className="h-3 w-3" /> {aliveCount} أرواح
+              {aliveCount} أرواح
             </span>
           </div>
 
@@ -268,49 +270,51 @@ function SeatGroup({
         />
       )}
 
-      {/* noir tarot card — velvet face, double gold line, cinematic hover */}
-      <div
-        className={`relative flex h-24 w-16 flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-[#d4af37]/40 bg-gradient-to-b from-[#1a1410] to-[#0a0806] shadow-[0_4px_20px_rgba(0,0,0,0.8)] transition-all duration-300 sm:h-32 sm:w-24 ${dense ? 'scale-[0.88]' : ''} ${
-          dead ? 'opacity-70 grayscale' : ''
-        } ${
+      {/* Face-down player card. The image is the back face; role data remains hidden.
+          الإطار التجميلي بيتلاصق فوق ظهر الكارت — وحالات اللعب بتتوهج بدل الـ rings عشان متغطيش الفن */}
+      <motion.div
+        animate={dead ? { x: [-5, 5, -5, 5, 0] } : { x: 0 }}
+        transition={{ duration: 0.3, ease: 'easeInOut' }}
+        className={`relative flex h-24 w-16 flex-col items-center justify-center overflow-hidden rounded-xl bg-[url('/assets/cards/card-back.jpg')] bg-cover bg-center bg-no-repeat shadow-[0_4px_20px_rgba(0,0,0,0.8)] transition-[filter,box-shadow,transform] duration-300 sm:h-32 sm:w-24 ${dense ? 'scale-[0.88]' : ''} ${
           isSpeaking && !dead
-            ? // active speaker — crimson neon ring
-              'ring-2 ring-red-600 shadow-[0_4px_20px_rgba(0,0,0,0.8),0_0_25px_rgba(220,38,38,0.8)]'
+            ? 'shadow-[0_4px_20px_rgba(0,0,0,0.8),0_0_28px_rgba(220,38,38,0.95)]'
             : mayorRevealed
-              ? 'ring-2 ring-gold-400 shadow-[0_4px_20px_rgba(0,0,0,0.8),0_0_18px_rgba(212,175,55,0.5)]'
+              ? 'shadow-[0_4px_20px_rgba(0,0,0,0.8),0_0_24px_rgba(212,175,55,0.8)]'
               : muted && player.isAlive
-                ? 'ring-2 ring-blood-500 shadow-[0_4px_20px_rgba(0,0,0,0.8)]'
+                ? 'shadow-[0_4px_20px_rgba(0,0,0,0.8),0_0_18px_rgba(230,57,70,0.55)]'
                 : isTopAccused
-                  ? 'animate-pulse ring-2 ring-blood-400 shadow-[0_4px_20px_rgba(0,0,0,0.8)]'
+                  ? 'animate-pulse shadow-[0_4px_20px_rgba(0,0,0,0.8),0_0_26px_rgba(230,57,70,0.75)]'
                   : isYou
-                    ? 'ring-2 ring-gold-500/80 shadow-[0_4px_20px_rgba(0,0,0,0.8)]'
+                    ? 'shadow-[0_4px_20px_rgba(0,0,0,0.8),0_0_20px_rgba(212,175,55,0.55)]'
                     : 'shadow-[0_4px_20px_rgba(0,0,0,0.8)]'
         } ${
           dead
-            ? ''
-            : 'cursor-pointer hover:-translate-y-2 hover:border-[#ffd700] hover:shadow-[0_4px_20px_rgba(0,0,0,0.8),0_0_25px_rgba(212,175,55,0.4)]'
+            ? '[filter:grayscale(100%)_sepia(30%)_brightness(70%)]'
+            : 'cursor-pointer hover:-translate-y-2 hover:shadow-[0_4px_20px_rgba(0,0,0,0.8),0_0_25px_rgba(212,175,55,0.4)]'
         }`}
       >
-        {/* face-down tarot backing: retro diagonal stripes + gold emblem */}
-        <span
+        {/* إطار الكوزمتكس المجهّز — فوق ظهر الكارت وتحت الأفاتار والشارات */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={frameImage(player.cosmetics?.cardFrame)}
+          alt=""
           aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-60 [background:repeating-linear-gradient(45deg,_rgba(212,175,55,0.09)_0_6px,_transparent_6px_12px)]"
+          className="pointer-events-none absolute inset-0 z-[5] h-full w-full select-none"
         />
-        {/* inner hairline — the second line of the metallic double border */}
-        <span aria-hidden className="pointer-events-none absolute inset-1 rounded-lg border border-[#d4af37]/25" />
-        <span aria-hidden className="absolute bottom-1 right-1.5 font-serif text-[9px] font-black text-[#d4af37]/40">
-          VII
-        </span>
-
-        {dead ? (
-          /* DEAD state — dark overlay + stamped verdict */
-          <div className="relative z-10 flex flex-col items-center gap-1">
-            <Skull className="h-6 w-6 text-slate-600 sm:h-9 sm:w-9" strokeWidth={1.5} />
-            <span className="-rotate-12 rounded border-2 border-blood-600/80 px-1 font-mono text-[9px] font-black tracking-widest text-blood-500">
+        {dead && (
+          <motion.span
+            initial={{ scale: 4, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+            className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-black/35"
+          >
+            <span className="-rotate-12 rounded-sm border-[3px] border-red-700/90 bg-black/55 px-2 py-1 font-serif text-sm font-black text-red-600 shadow-[0_2px_8px_rgba(0,0,0,0.8)] sm:text-lg">
               مرحوم
             </span>
-          </div>
-        ) : (
+          </motion.span>
+        )}
+
+        {!dead && (
           /* avatar inside circular gold-ring frame */
           <div className="relative z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 border-[#d4af37]/70 bg-night-950/80 shadow-[0_0_14px_rgba(212,175,55,0.35)] sm:h-12 sm:w-12">
             {player.isBot ? (
@@ -366,7 +370,7 @@ function SeatGroup({
         {showTokens && votes > 0 && !dead && (
           <VoteTokens count={votes} dx={math.inwardX} dy={math.inwardY} />
         )}
-      </div>
+      </motion.div>
 
       <span
         className={`z-20 mt-1 max-w-[64px] truncate rounded-full border border-gold-500/30 bg-black/80 px-1.5 py-0.5 text-center text-[9px] font-bold leading-snug text-gold-200 shadow-[0_0_12px_rgba(212,175,55,0.25)] sm:max-w-[92px] sm:px-2 sm:text-[10px] ${dense ? 'scale-[0.88]' : ''} ${
@@ -376,6 +380,11 @@ function SeatGroup({
         {player.name}
         {isYou && ' ★'}
       </span>
+      {titleName(player.cosmetics?.title) && !dead && (
+        <span className="mt-0.5 max-w-[92px] truncate rounded-full border border-gold-400/40 bg-gradient-to-l from-gold-700/30 to-gold-500/15 px-2 py-0.5 text-center text-[8px] font-black text-gold-300 shadow-[0_0_10px_rgba(212,175,55,0.3)]">
+          {titleName(player.cosmetics?.title)}
+        </span>
+      )}
     </motion.div>
   );
 }

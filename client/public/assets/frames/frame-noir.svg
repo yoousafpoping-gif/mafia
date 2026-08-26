@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 768">
+  <defs>
+    <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e8e8ec"/>
+      <stop offset=".5" stop-color="#9a9aa4"/>
+      <stop offset="1" stop-color="#5c5c66"/>
+    </linearGradient>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .6 0" result="dots"/>
+      <feComposite in="dots" in2="SourceGraphic" operator="in"/>
+    </filter>
+  </defs>
+  <!-- إطار نوار: فيلم قديم — حواف فضية وزوايا تصوير وثائقي وثقوب فيلم -->
+  <rect x="16" y="16" width="480" height="736" rx="10" fill="none" stroke="url(#silver)" stroke-width="28"/>
+  <rect x="42" y="42" width="428" height="684" rx="4" fill="none" stroke="#efeff4" stroke-width="2" opacity=".55"/>
+  <!-- ثقوب شريط الفيلم على الضلعين -->
+  <g fill="#0c0c10">
+    <rect x="30" y="88" width="12" height="18" rx="2"/>
+    <rect x="30" y="150" width="12" height="18" rx="2"/>
+    <rect x="30" y="212" width="12" height="18" rx="2"/>
+    <rect x="30" y="274" width="12" height="18" rx="2"/>
+    <rect x="30" y="336" width="12" height="18" rx="2"/>
+    <rect x="30" y="398" width="12" height="18" rx="2"/>
+    <rect x="30" y="460" width="12" height="18" rx="2"/>
+    <rect x="30" y="522" width="12" height="18" rx="2"/>
+    <rect x="30" y="584" width="12" height="18" rx="2"/>
+    <rect x="30" y="646" width="12" height="18" rx="2"/>
+    <rect x="470" y="88" width="12" height="18" rx="2"/>
+    <rect x="470" y="150" width="12" height="18" rx="2"/>
+    <rect x="470" y="212" width="12" height="18" rx="2"/>
+    <rect x="470" y="274" width="12" height="18" rx="2"/>
+    <rect x="470" y="336" width="12" height="18" rx="2"/>
+    <rect x="470" y="398" width="12" height="18" rx="2"/>
+    <rect x="470" y="460" width="12" height="18" rx="2"/>
+    <rect x="470" y="522" width="12" height="18" rx="2"/>
+    <rect x="470" y="584" width="12" height="18" rx="2"/>
+    <rect x="470" y="646" width="12" height="18" rx="2"/>
+  </g>
+  <!-- زوايا أقواس التصوير -->
+  <g fill="none" stroke="#efeff4" stroke-width="6">
+    <path d="M30 96 V56 Q30 30 56 30 H96"/>
+    <path d="M416 30 H456 Q482 30 482 56 V96"/>
+    <path d="M30 672 V712 Q30 738 56 738 H96"/>
+    <path d="M416 738 H456 Q482 738 482 712 V672"/>
+  </g>
+  <!-- حبيبات فيلم خفيفة على الحد -->
+  <rect x="16" y="16" width="480" height="736" rx="10" fill="none" stroke="#ffffff" stroke-width="28" filter="url(#grain)" opacity=".25"/>
+</svg>

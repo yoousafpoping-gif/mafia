@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="gHand" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe98f"/>
+      <stop offset=".55" stop-color="#e9c46a"/>
+      <stop offset="1" stop-color="#b08a2e"/>
+    </linearGradient>
+  </defs>
+  <!-- تصفيق ذهبي: كفين دهبيين بيتصطدموا مع شرارات -->
+  <!-- كف يمين -->
+  <g stroke="#7a5c14" stroke-width="2.5" fill="url(#gHand)">
+    <path d="M84 30 C96 34 100 48 96 62 L88 86 C84 96 74 98 68 92 L56 76 C50 68 52 58 60 54 Z"/>
+    <path d="M86 28 L90 14 C91 10 97 11 96 15 L92 30 Z"/>
+    <path d="M94 34 L102 24 C105 20 110 24 107 28 L99 38 Z"/>
+  </g>
+  <!-- كف شمال -->
+  <g stroke="#7a5c14" stroke-width="2.5" fill="url(#gHand)">
+    <path d="M44 30 C32 34 28 48 32 62 L40 86 C44 96 54 98 60 92 L72 76 C78 68 76 58 68 54 Z"/>
+    <path d="M42 28 L38 14 C37 10 31 11 32 15 L36 30 Z"/>
+    <path d="M34 34 L26 24 C23 20 18 24 21 28 L29 38 Z"/>
+  </g>
+  <!-- خطوط التصفيق -->
+  <g stroke="#f4d97b" stroke-width="4.5" stroke-linecap="round">
+    <path d="M64 4 L64 -2" transform="translate(0 8)"/>
+    <path d="M22 8 L14 0" transform="translate(10 12)"/>
+    <path d="M106 8 L114 0" transform="translate(-6 12)"/>
+  </g>
+  <!-- نجمات -->
+  <g fill="#fff2b8">
+    <path d="M64 102 l3 6 6 3 -6 3 -3 6 -3 -6 -6 -3 6 -3 z"/>
+    <path d="M24 96 l2.5 5 5 2.5 -5 2.5 -2.5 5 -2.5 -5 -5 -2.5 5 -2.5 z"/>
+    <path d="M104 96 l2.5 5 5 2.5 -5 2.5 -2.5 5 -2.5 -5 -5 -2.5 5 -2.5 z"/>
+  </g>
+</svg>

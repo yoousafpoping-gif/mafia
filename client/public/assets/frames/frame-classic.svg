@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 768">
+  <defs>
+    <linearGradient id="steel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8f9aa8"/>
+      <stop offset=".45" stop-color="#c7cdd6"/>
+      <stop offset=".55" stop-color="#6e7887"/>
+      <stop offset="1" stop-color="#4a525e"/>
+    </linearGradient>
+    <linearGradient id="inner" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#aab3bf"/>
+      <stop offset="1" stop-color="#59616d"/>
+    </linearGradient>
+  </defs>
+  <!-- الإطار الكلاسيكي: حديد صامت بلا زخرفة — بس من الآخر -->
+  <rect x="18" y="18" width="476" height="732" rx="54" fill="none" stroke="url(#steel)" stroke-width="26"/>
+  <rect x="40" y="40" width="432" height="688" rx="38" fill="none" stroke="url(#inner)" stroke-width="4"/>
+  <!-- مسامير الزوايا الأربعة -->
+  <g fill="#d7dde5">
+    <circle cx="46" cy="46" r="7"/>
+    <circle cx="466" cy="46" r="7"/>
+    <circle cx="46" cy="722" r="7"/>
+    <circle cx="466" cy="722" r="7"/>
+  </g>
+  <g fill="#39404a">
+    <circle cx="46" cy="46" r="3"/>
+    <circle cx="466" cy="46" r="3"/>
+    <circle cx="46" cy="722" r="3"/>
+    <circle cx="466" cy="722" r="3"/>
+  </g>
+</svg>

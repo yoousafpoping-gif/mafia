@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <radialGradient id="fCore" cx=".5" cy=".72" r=".65">
+      <stop offset="0" stop-color="#fff3b0"/>
+      <stop offset=".45" stop-color="#ffd23c"/>
+      <stop offset="1" stop-color="#ff8c1a"/>
+    </radialGradient>
+    <linearGradient id="fOuter" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#ff8c1a"/>
+      <stop offset=".6" stop-color="#e6470b"/>
+      <stop offset="1" stop-color="#b32305"/>
+    </linearGradient>
+  </defs>
+  <!-- نار: لهب خارج بألسنة متدرجة -->
+  <path d="M64 8 C76 34 96 44 96 72 C96 94 82 108 64 108 C46 108 32 94 32 72 C32 52 44 46 48 32 C52 44 58 46 58 38 C58 28 58 16 64 8 Z" fill="url(#fOuter)"/>
+  <path d="M64 34 C70 48 84 54 84 74 C84 88 75 98 64 98 C53 98 44 88 44 74 C44 62 50 56 52 46 C56 54 60 54 60 48 C60 42 61 38 64 34 Z" fill="url(#fCore)"/>
+  <path d="M64 56 C68 64 74 66 74 78 C74 86 70 92 64 92 C58 92 54 86 54 78 C54 70 58 66 60 60 C61 64 63 63 64 56 Z" fill="#fff8d6"/>
+  <ellipse cx="52" cy="30" rx="6" ry="12" fill="#ffd23c" opacity=".35" transform="rotate(-24 52 30)"/>
+</svg>

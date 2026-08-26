@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { CircleHelp, Crown, LogOut, ScrollText, Settings, Skull, Trophy } from 'lucide-react';
+import { CircleHelp, Coins, Crown, Gem, LogOut, ScrollText, Settings, Skull, Trophy } from 'lucide-react';
 import { useCountdown } from '@/hooks/useCountdown';
 import { GOLD_ICON } from '@/styles/themeConfig';
 import { GAME_LOGO, GAME_TITLE } from '@/lib/branding';
@@ -104,24 +104,16 @@ export function TopBar({
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
         {user && (
           <span
-            title={`${user.displayName} · ${profile?.coins ?? '—'} كوينز`}
-            className="hidden items-center gap-1.5 rounded-full border border-gold-500/40 bg-gold-500/10 py-0.5 ps-0.5 pe-2 xs:flex sm:flex"
+            title={`${user.displayName} · ${profile?.coins ?? '—'} كوينز · ${profile?.gems ?? '—'} جواهر`}
+            className="hidden items-center gap-1 xs:flex"
           >
-            {user.photoURL ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={user.photoURL}
-                alt=""
-                referrerPolicy="no-referrer"
-                className="h-7 w-7 rounded-full border border-gold-500/50 object-cover"
-              />
-            ) : (
-              <span className="flex h-7 w-7 items-center justify-center rounded-full border border-gold-500/50 bg-night-950 font-serif text-[10px] font-black text-gold-200">
-                {user.displayName.slice(0, 2).toUpperCase()}
-              </span>
-            )}
-            <span className="font-mono text-[10px] font-black text-gold-300">
+            <span className="flex items-center gap-1 rounded-full border border-gold-500/40 bg-gold-500/10 px-1.5 py-1 font-mono text-[9px] font-black text-gold-300 sm:px-2 sm:text-[10px]">
+              <Coins className="h-3 w-3 shrink-0" />
               {profile?.coins ?? '—'}
+            </span>
+            <span className="flex items-center gap-1 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-1.5 py-1 font-mono text-[9px] font-black text-cyan-200 sm:px-2 sm:text-[10px]">
+              <Gem className="h-3 w-3 shrink-0" />
+              {profile?.gems ?? '—'}
             </span>
           </span>
         )}

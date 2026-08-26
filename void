@@ -1,0 +1,9 @@
+Exception calling "WriteAllText" with "3" argument(s): "The requested 
+operation cannot be performed on a file with a user-mapped section open.
+"
+At line:1 char:402
++ ... = false;"); [IO.File]::WriteAllText((Join-Path (Get-Location) $p),$s, ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [], MethodInvocationException
+    + FullyQualifiedErrorId : IOException
+ 

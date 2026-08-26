@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Check, Loader2, LogOut, RotateCcw, Skull, Trophy, WifiOff } from 'lucide-react';
 import { RoleAvatar } from './Avatars';
 import { ROLE_META } from '@/lib/roles';
+import { frameImage, titleName } from '@/lib/cosmetics';
 import type { PublicPlayer, RoomResult } from '@/lib/types';
 
 export function GameOverScreen({
@@ -51,6 +52,9 @@ export function GameOverScreen({
           {townWon ? 'الأهالي كسبوا!' : 'المافيا سيطرت!'}
         </h2>
         <p className="mt-2 text-sm text-slate-400">{result.reason}</p>
+        <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+          نتيجة اللعب P2P للعرض فقط. الكوينز والإحصائيات الدائمة لا تُمنح إلا لنتيجة موثقة من backend.
+        </p>
       </motion.div>
 
       <div className="mt-6 grid w-full max-w-xl grid-cols-2 gap-2.5 sm:grid-cols-3">
@@ -71,14 +75,21 @@ export function GameOverScreen({
                   : 'border-gold-500/40 bg-gold-500/5'
               } ${seat.isAlive ? '' : 'opacity-55'}`}
             >
-              <div className="mx-auto w-fit">
-                {seat.role && <RoleAvatar role={seat.role} size={44} />}
+              <div className="relative mx-auto flex h-16 w-11 items-center justify-center overflow-hidden rounded-lg bg-night-950/80 shadow-[0_4px_16px_rgba(0,0,0,0.65)]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={frameImage(seat.cosmetics?.cardFrame)} alt="" aria-hidden className="pointer-events-none absolute inset-0 z-10 h-full w-full select-none" />
+                {seat.role && <RoleAvatar role={seat.role} size={36} />}
               </div>
               <p className="mt-1.5 truncate text-sm font-bold text-slate-100">
                 {seat.name}
                 {seat.id === youId && <span className="ml-1 text-xs text-gold-400">*</span>}
                 {live?.isBot && <span className="ml-1 text-[10px]">🤖</span>}
               </p>
+              {titleName(seat.cosmetics?.title) && (
+                <p className="mx-auto mt-0.5 w-fit truncate rounded-full border border-gold-500/40 bg-gold-500/10 px-1.5 py-px text-[8px] font-black text-gold-300">
+                  {titleName(seat.cosmetics?.title)}
+                </p>
+              )}
               <p className={`flex items-center justify-center gap-1 text-[11px] ${mafia ? 'text-blood-300' : 'text-gold-500'}`}>
                 {meta?.label}
                 {rematchVotes.includes(seat.id) && !departed && (

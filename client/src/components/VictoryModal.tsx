@@ -6,6 +6,7 @@ import { Crown, LogOut, RotateCcw, Skull, Target, Timer, Users } from 'lucide-re
 import { RoleAvatar } from './Avatars';
 import { playNarrator, stopNarrator } from '@/lib/audioManager';
 import { GAME_LOGO, GAME_TITLE } from '@/lib/branding';
+import { frameImage, titleName } from '@/lib/cosmetics';
 import { ROLE_META } from '@/lib/roles';
 import type { GameState, Team } from '@/lib/types';
 
@@ -241,14 +242,21 @@ export function VictoryModal({
               <span className="mt-1 font-mono text-[9px] font-black tracking-[0.3em] text-gold-400 uppercase">
                 MVP
               </span>
-              <div className="mt-1.5 rounded-full border-2 border-gold-400/80 bg-night-950/80 p-1 shadow-[0_0_22px_rgba(229,181,103,0.5)]">
-                <RoleAvatar role={mvp.role} size={56} />
+              <div className="relative mt-1.5 flex h-24 w-16 items-center justify-center overflow-hidden rounded-xl bg-night-950/80 shadow-[0_0_22px_rgba(229,181,103,0.5)]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={frameImage(mvp.cosmetics?.cardFrame)} alt="" aria-hidden className="pointer-events-none absolute inset-0 z-10 h-full w-full select-none" />
+                <RoleAvatar role={mvp.role} size={48} />
               </div>
               <p className="mt-2 max-w-[140px] truncate text-sm font-black text-gold-100">
                 {mvp.name}
                 {mvp.id === youId && <span className="text-gold-400"> ★</span>}
               </p>
-              <p className="text-[10px] font-bold text-gold-400/80">أفضل لاعب في الجلسة</p>
+              {titleName(mvp.cosmetics?.title) && (
+                <p className="mt-0.5 max-w-[150px] truncate rounded-full border border-gold-400/40 bg-gold-500/10 px-2 py-0.5 text-[9px] font-black text-gold-300">
+                  {titleName(mvp.cosmetics?.title)}
+                </p>
+              )}
+              <p className="mt-0.5 text-[10px] font-bold text-gold-400/80">أفضل لاعب في الجلسة</p>
             </div>
           </motion.div>
         )}

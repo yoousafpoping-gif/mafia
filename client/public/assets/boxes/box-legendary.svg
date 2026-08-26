@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="dark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d2b66"/>
+      <stop offset=".55" stop-color="#241744"/>
+      <stop offset="1" stop-color="#120a24"/>
+    </linearGradient>
+    <linearGradient id="vio" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b3a4ff"/>
+      <stop offset="1" stop-color="#6d5bd0"/>
+    </linearGradient>
+    <filter id="mag" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- صندوق أسطوري: صندوق مسحور بنار بنفسجية -->
+  <rect x="36" y="104" width="184" height="118" rx="12" fill="url(#dark)" stroke="#8b7bff" stroke-width="4"/>
+  <rect x="36" y="104" width="184" height="118" rx="12" fill="none" stroke="#b3a4ff" stroke-width="2" opacity=".5"/>
+  <!-- غطا -->
+  <path d="M36 104 Q36 52 90 48 L166 48 Q220 52 220 104 Z" fill="url(#dark)" stroke="#8b7bff" stroke-width="4"/>
+  <!-- جوهرة القفل -->
+  <g filter="url(#mag)">
+    <path d="M128 116 L146 132 128 148 110 132 Z" fill="url(#vio)" stroke="#e6e0ff" stroke-width="2"/>
+    <path d="M128 116 L128 148 M110 132 H146" stroke="#e6e0ff" stroke-width="1.5" opacity=".7"/>
+  </g>
+  <!-- لهب بنفسجي بيتسرب من الشق -->
+  <g filter="url(#mag)" fill="url(#vio)">
+    <path d="M70 104 q8 -14 3 -26 q14 9 9 26 q-2 6 -7 6 q-6 0 -5 -6 z" opacity=".9"/>
+    <path d="M180 104 q7 -12 3 -22 q12 8 8 22 q-2 5 -6 5 q-5 0 -5 -5 z" opacity=".85"/>
+    <path d="M128 100 q6 -10 2 -19 q10 7 7 19 q-1 4 -5 4 q-4 0 -4 -4 z" opacity=".8"/>
+  </g>
+  <!-- جواهر مطمورة في الضلعين -->
+  <g filter="url(#mag)">
+    <path d="M52 190 l10 6 -10 6 -10 -6 z" fill="#6ef0b6"/>
+    <path d="M204 190 l10 6 -10 6 -10 -6 z" fill="#ff6b74"/>
+  </g>
+  <!-- نجيمات -->
+  <g fill="#e6e0ff">
+    <path d="M44 44 l3 6 6 3 -6 3 -3 6 -3 -6 -6 -3 6 -3 z" opacity=".9"/>
+    <path d="M214 38 l2.5 5 5 2.5 -5 2.5 -2.5 5 -2.5 -5 -5 -2.5 5 -2.5 z" opacity=".85"/>
+  </g>
+</svg>

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 768">
+  <defs>
+    <linearGradient id="neonPink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff8df5"/>
+      <stop offset=".5" stop-color="#e935e9"/>
+      <stop offset="1" stop-color="#a01ab8"/>
+    </linearGradient>
+    <filter id="neonGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="9" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c1026"/>
+      <stop offset="1" stop-color="#0b0612"/>
+    </linearGradient>
+  </defs>
+  <!-- إطار النيون: لوحة سودا وأنابيب ماجنتا بتنبض -->
+  <rect x="12" y="12" width="488" height="744" rx="56" fill="none" stroke="url(#plate)" stroke-width="34"/>
+  <rect x="26" y="26" width="460" height="716" rx="44" fill="none" stroke="url(#neonPink)" stroke-width="7" filter="url(#neonGlow)"/>
+  <rect x="44" y="44" width="424" height="680" rx="32" fill="none" stroke="url(#neonPink)" stroke-width="2.5" opacity=".65"/>
+  <!-- شرائح أنابيب على الأضلاع — زخرفة لافتة النيون -->
+  <g stroke="url(#neonPink)" stroke-width="7" filter="url(#neonGlow)">
+    <path d="M128 26 h32 M224 26 h64 M352 26 h32"/>
+    <path d="M128 742 h32 M224 742 h64 M352 742 h32"/>
+    <path d="M26 320 v32 M26 416 v32"/>
+    <path d="M486 320 v32 M486 416 v32"/>
+  </g>
+  <!-- صاعقة صغيرة فوق في النص -->
+  <g filter="url(#neonGlow)" transform="translate(256 60)">
+    <path d="M-6 -22 L8 -4 0 -4 8 20 -10 -2 -2 -2 Z" fill="#ff8df5"/>
+  </g>
+</svg>

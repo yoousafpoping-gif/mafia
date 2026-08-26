@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 768">
+  <defs>
+    <linearGradient id="goldband" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8a6d1f"/>
+      <stop offset=".3" stop-color="#f4d97b"/>
+      <stop offset=".5" stop-color="#d4af37"/>
+      <stop offset=".75" stop-color="#fff2b8"/>
+      <stop offset="1" stop-color="#9a7a26"/>
+    </linearGradient>
+    <linearGradient id="goldline" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe98f"/>
+      <stop offset="1" stop-color="#b08a2e"/>
+    </linearGradient>
+    <filter id="sheen" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- إطار الدون الذهبي: قضيب ذهب مصقول بحليات الزوايا وتاج في الوسط -->
+  <rect x="14" y="14" width="484" height="740" rx="56" fill="none" stroke="url(#goldband)" stroke-width="34" filter="url(#sheen)"/>
+  <rect x="46" y="46" width="420" height="676" rx="34" fill="none" stroke="url(#goldline)" stroke-width="4"/>
+  <!-- تاج الدون فوق في الوسط -->
+  <g filter="url(#sheen)" transform="translate(256 52)">
+    <path d="M-46 12 L-34 -16 -18 2 -8 -20 0 -4 8 -20 18 2 34 -16 46 12 Z" fill="url(#goldband)" stroke="#6b5314" stroke-width="2"/>
+    <rect x="-46" y="14" width="92" height="9" rx="4" fill="url(#goldband)" stroke="#6b5314" stroke-width="2"/>
+    <circle cx="-34" cy="-20" r="4" fill="#fff2b8"/>
+    <circle cx="-8" cy="-24" r="4" fill="#fff2b8"/>
+    <circle cx="8" cy="-24" r="4" fill="#fff2b8"/>
+    <circle cx="34" cy="-20" r="4" fill="#fff2b8"/>
+  </g>
+  <!-- حليات الزوايا: سوالف ذهبية -->
+  <g fill="none" stroke="url(#goldline)" stroke-width="5" stroke-linecap="round">
+    <path d="M36 78 Q36 36 78 36 M44 84 Q44 44 84 44"/>
+    <path d="M476 78 Q476 36 434 36 M468 84 Q468 44 428 44"/>
+    <path d="M36 690 Q36 732 78 732 M44 684 Q44 724 84 724"/>
+    <path d="M476 690 Q476 732 434 732 M468 684 Q468 724 428 724"/>
+  </g>
+  <!-- معين صغير في منتصف كل ضلع -->
+  <g fill="#f4d97b">
+    <path d="M256 726 l12 8 -12 8 -12 -8 z"/>
+    <path d="M36 384 l8 12 -8 12 -8 -12 z"/>
+    <path d="M476 384 l8 12 -8 12 -8 -12 z"/>
+  </g>
+</svg>

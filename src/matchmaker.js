@@ -9,7 +9,7 @@ import { logger } from './utils/logger.js';
  * أوض "اعمل أوضة" العادية بتفضل خاصة بالكود — البحث السريع بس اللي
  * بيشوف الأوض العامة.
  */
-export function quickMatch(manager, { name, socketId }) {
+export function quickMatch(manager, { name, socketId, cosmetics }) {
   // 1) أول أوضة عامة مفتوحة فيها مكان وفيها بني آدم حقيقي
   for (const room of manager.rooms.values()) {
     if (!room.isPublic) continue;
@@ -22,7 +22,7 @@ export function quickMatch(manager, { name, socketId }) {
   }
 
   // 2) ولا ولا وحدة → أوضة عامة جديدة واللاعب هو الهوست
-  const { room } = manager.createRoom({ name, socketId, isPublic: true });
+  const { room } = manager.createRoom({ name, socketId, isPublic: true, cosmetics });
   logger.info(`Quick match: created public room ${room.code}`);
   return { code: room.code, created: true };
 }

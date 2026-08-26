@@ -33,6 +33,8 @@ export function RoleRevealModal({
   round?: number;
   aliveCount?: number;
 }) {
+  const [isRevealed, setIsRevealed] = useState(false);
+
   return (
     <AnimatePresence>
       {open && you.role && (
@@ -80,19 +82,35 @@ export function RoleRevealModal({
               </div>
             </header>
 
-            {/* card — never collapses */}
-            <div className="relative flex min-h-[450px] w-full flex-1 flex-col items-center justify-center">
-              <RoleArtwork role={you.role} />
-              <RoleDetails you={you} />
+            <div className="relative mx-auto aspect-[2/3] w-full max-w-[280px] perspective-[1000px]">
+              <motion.div
+                animate={{ rotateY: isRevealed ? 180 : 0 }}
+                transition={{ duration: 0.6, type: 'spring', stiffness: 260, damping: 20 }}
+                onClick={() => setIsRevealed(true)}
+                className={`absolute inset-0 preserve-3d ${isRevealed ? '' : 'cursor-pointer'}`}
+              >
+                <div className="absolute inset-0 overflow-hidden rounded-md bg-[url('/assets/cards/card-back.jpg')] bg-cover bg-center backface-hidden" />
+                <div className="custom-scrollbar absolute inset-0 flex rotate-y-180 flex-col overflow-y-auto rounded-lg border border-gold-500/30 bg-[#0b0d10] p-3 backface-hidden">
+                  <RoleArtwork role={you.role} />
+                  <RoleDetails you={you} />
+                </div>
+              </motion.div>
             </div>
 
-            {/* action — always in flow, always visible */}
-            <button
-              onClick={onClose}
-              className="mt-6 w-full shrink-0 rounded-lg border border-gold-500 bg-red-700 py-3 text-lg font-bold text-white shadow-[0_0_15px_rgba(230,57,70,0.4)] transition-all hover:bg-red-600"
-            >
-              ابدأ اللعب
-            </button>
+            {!isRevealed && (
+              <p className="mt-4 text-center font-mono text-xs font-bold tracking-wider text-gold-400">
+                اضغط على الكارت عشان تعرف دورك
+              </p>
+            )}
+
+            {isRevealed && (
+              <button
+                onClick={onClose}
+                className="mt-6 w-full shrink-0 rounded-lg border border-gold-500 bg-red-700 py-3 text-lg font-bold text-white shadow-[0_0_15px_rgba(230,57,70,0.4)] transition-all hover:bg-red-600"
+              >
+                ابدأ اللعب
+              </button>
+            )}
           </motion.div>
         </motion.div>
       )}
@@ -118,7 +136,7 @@ function RoleArtwork({ role }: { role: NonNullable<YouState['role']> }) {
         style={{ animation: 'ledPulse 3s ease-in-out infinite' }}
       />
       {/* الكارت الفعلي — صورة الدور بتغطي الإطار كله بهالة دهبية */}
-      <div className="relative aspect-[3/4] w-full max-w-[300px] overflow-hidden rounded-lg">
+      <div className="relative aspect-[2/3] w-full max-w-[280px] overflow-hidden rounded-lg">
         {showArtwork ? (
           <Image
             key={src}
@@ -127,7 +145,7 @@ function RoleArtwork({ role }: { role: NonNullable<YouState['role']> }) {
             fill
             priority
             sizes="(max-width: 640px) 80vw, 300px"
-            className="h-full max-h-[500px] w-full rounded-lg object-cover ring-2 ring-gold-400/70 shadow-[0_0_40px_rgba(212,175,55,0.45)]"
+            className="h-full w-full rounded-lg object-contain ring-2 ring-gold-400/70 shadow-[0_0_40px_rgba(212,175,55,0.45)]"
             onError={() => setFailedSrc(src)}
           />
         ) : (

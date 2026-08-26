@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 768">
+  <defs>
+    <linearGradient id="venomG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b7ff3c"/>
+      <stop offset=".55" stop-color="#65d92c"/>
+      <stop offset="1" stop-color="#2f7a0f"/>
+    </linearGradient>
+    <linearGradient id="venomP" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7b2fbf"/>
+      <stop offset="1" stop-color="#3f1067"/>
+    </linearGradient>
+    <filter id="venomGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- إطار السم: قارورة خضرا بتقطّر سم بنفسجي -->
+  <rect x="16" y="16" width="480" height="736" rx="54" fill="none" stroke="url(#venomG)" stroke-width="30" filter="url(#venomGlow)"/>
+  <rect x="42" y="42" width="428" height="684" rx="36" fill="none" stroke="#d8ff8f" stroke-width="2.5" opacity=".6"/>
+  <!-- قطرات سم بنفسجية متدلية من فوق -->
+  <g fill="url(#venomP)" filter="url(#venomGlow)">
+    <path d="M84 28 q7 26 0 40 q-7 -14 0 -40"/>
+    <path d="M170 24 q5 16 0 26 q-5 -10 0 -26"/>
+    <path d="M268 30 q8 34 0 52 q-8 -18 0 -52"/>
+    <path d="M366 26 q5 18 0 28 q-5 -10 0 -28"/>
+    <path d="M448 30 q6 20 0 30 q-6 -10 0 -30"/>
+  </g>
+  <!-- فقاعات سامعة صاعدة في الضلعين -->
+  <g fill="none" stroke="#b7ff3c" stroke-width="3" opacity=".8">
+    <circle cx="31" cy="250" r="7"/>
+    <circle cx="31" cy="330" r="4"/>
+    <circle cx="481" cy="290" r="6"/>
+    <circle cx="481" cy="420" r="4"/>
+    <circle cx="31" cy="520" r="5"/>
+  </g>
+  <!-- جمجمة سامة صغيرة تحت -->
+  <g transform="translate(256 722)" fill="url(#venomG)" filter="url(#venomGlow)">
+    <path d="M-14 6 q0 -14 14 -14 q14 0 14 14 q0 8 -6 10 v6 h-16 v-6 q-6 -2 -6 -10 z"/>
+    <circle cx="-5" cy="4" r="3" fill="#0f2b05"/>
+    <circle cx="5" cy="4" r="3" fill="#0f2b05"/>
+    <rect x="-3" y="10" width="2" height="5" fill="#0f2b05"/>
+    <rect x="1" y="10" width="2" height="5" fill="#0f2b05"/>
+  </g>
+</svg>

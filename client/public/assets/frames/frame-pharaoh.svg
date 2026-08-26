@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 768">
+  <defs>
+    <linearGradient id="phGold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c9a227"/>
+      <stop offset=".5" stop-color="#f7e08a"/>
+      <stop offset="1" stop-color="#8f6b14"/>
+    </linearGradient>
+    <linearGradient id="turq" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3fd6c9"/>
+      <stop offset="1" stop-color="#0e8f88"/>
+    </linearGradient>
+    <filter id="phGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- إطار الفرعون: ذهب وفيروز وخطوط هيروغليفية وعين حورس -->
+  <rect x="14" y="14" width="484" height="740" rx="56" fill="none" stroke="url(#phGold)" stroke-width="34" filter="url(#phGlow)"/>
+  <rect x="44" y="44" width="424" height="680" rx="34" fill="none" stroke="url(#turq)" stroke-width="5"/>
+  <!-- خطوط هيروغليفية على الحدود -->
+  <g stroke="#5c3f0c" stroke-width="3.5" opacity=".7" stroke-linecap="round">
+    <path d="M110 31 h20 M150 31 h10 M180 31 h26 M330 31 h26 M372 31 h10 M402 31 h20"/>
+    <path d="M110 737 h20 M150 737 h10 M180 737 h26 M330 737 h26 M372 737 h10 M402 737 h20"/>
+    <path d="M31 180 v20 M31 240 v10 M31 280 v26 M31 470 v26 M31 540 v10 M31 590 v20"/>
+    <path d="M481 180 v20 M481 240 v10 M481 280 v26 M481 470 v26 M481 540 v10 M481 590 v20"/>
+  </g>
+  <!-- قرص الشمس فوق -->
+  <g transform="translate(256 48)" filter="url(#phGlow)">
+    <circle r="16" fill="url(#phGold)" stroke="#5c3f0c" stroke-width="2.5"/>
+    <circle r="7" fill="url(#turq)"/>
+    <path d="M-30 0 q10 -8 30 -8 q20 0 30 8 q-10 8 -30 8 q-20 0 -30 -8 z" fill="none" stroke="#5c3f0c" stroke-width="2.5"/>
+  </g>
+  <!-- عين حورس تحت -->
+  <g transform="translate(256 722)" filter="url(#phGlow)">
+    <path d="M-28 0 q28 -16 56 0 q-28 16 -56 0 z" fill="none" stroke="url(#phGold)" stroke-width="4"/>
+    <circle r="7" fill="url(#turq)" stroke="#5c3f0c" stroke-width="2"/>
+    <path d="M-8 8 q-4 10 -12 12 M8 8 q4 10 12 12" fill="none" stroke="url(#phGold)" stroke-width="3.5" stroke-linecap="round"/>
+  </g>
+  <!-- زخارف زوايا بفيروز -->
+  <g fill="url(#turq)">
+    <path d="M52 52 l14 8 -14 8 -14 -8 z"/>
+    <path d="M460 52 l14 8 -14 8 -14 -8 z"/>
+    <path d="M52 700 l14 8 -14 8 -14 -8 z"/>
+    <path d="M460 700 l14 8 -14 8 -14 -8 z"/>
+  </g>
+</svg>
